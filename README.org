@@ -1,0 +1,9 @@
+#+TITLE: Todo.txt CLI for Chicken Scheme
+* What is it?
+A [[http://todotxt.com/][todo.txt]] client written in Chicken Scheme for those lisp completionists
+* Why is it?
+Because I can. Also for some peculiar reason the official CLI doesn't work for
+me.
+* Examples
+This program is functionally equivalent to the actual shell script, anything
+that would work there will work with this.
