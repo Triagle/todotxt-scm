@@ -1,83 +1,112 @@
 (declare (unit todotxt))
 (require-extension irregex)
-(require-extension defstruct)
-(use irregex defstruct utils)
+(require-extension defstruct comparse srfi-19-date)
+(use irregex comparse defstruct utils srfi-14 srfi-19-date)
 (defstruct task
   ;; (A) 2011-03-02 Call Mum +family @phone
   ;; x Do this really important thing
-  id completed completed-date date priority name projects contexts addons)
+  id done completed-date date priority text project context property)
 ;; Todo.txt regexes
-(define priority-rx  (irregex "\\([A-Z]\\)"))
-(define date-rx  (irregex "\\d{4,4}-\\d{2,2}-\\d{2,2}"))
-(define project-rx  (irregex "\\+([^\\s]+)"))
-(define context-rx  (irregex "@([^\\s]+)"))
-(define kv-pair-rx  (irregex "([^\\s]+):([^\\s]+)"))
-(define (split-line line)
-  (irregex-split (irregex '(+ whitespace)) line))
 (define (new-task)
   (make-task
    projects: '()
    contexts: '()
    addons: '()))
-(define (parse-task string)
-  (let ((tokens (split-line string))
-        (task (new-task)))
-    (cond
-
-     ((and (>= (length tokens) 3)
-           (equal? (substring (car tokens) 0 1) "x")
-           (irregex-match date-rx (cadr tokens))
-           (irregex-match date-rx (caddr tokens)))
-      (begin
-        (set-task! task
-                   completed: #t
-                   completed-date: (cadr tokens)
-                   date: (caddr tokens))
-        (set! tokens (cdddr tokens))))
-     ((and
-       (>= (length tokens) 2)
-       (equal? (substring (car tokens) 0 1) "x")
-       (irregex-match date-rx (cadr tokens)))
-      (begin
-        (set-task! task
-                   completed: #t
-                   completed-date: (cadr tokens))))
-
-     ((and
-       (>= (length tokens) 1)
-       (equal? (substring (car tokens) 0 1) "x"))
-      (begin
-        (set-task! task
-                   completed: #t)
-        (set! tokens (cdr tokens))))
-     ((and (>= (length tokens) 2) (irregex-match priority-rx (car tokens)) (irregex-match date-rx (cadr tokens)))
-      (begin
-        (set-task! task
-                   priority: (substring (car tokens) 1 2)
-                   date: (cadr tokens))
-        (set! tokens (cddr tokens))))
-     ((and (>= (length tokens) 1) (irregex-match priority-rx (car tokens)))
-      (begin
-        (set-task! task
-                   priority: (substring (car tokens) 1 2))
-        (set! tokens (cdr tokens))))
-   ((irregex-match date-rx (car tokens)) (begin
-                                           (set-task! task date: (car tokens))
-                                           (set! tokens (cdr tokens)))))
-    (foldl (lambda (acc cur)
-              (cond
-               ((irregex-match project-rx cur) (update-task acc projects: (cons (substring cur 1) (task-projects acc))))
-               ((irregex-match context-rx cur) (update-task acc contexts: (cons (substring cur 1) (task-contexts acc))))
-               ((irregex-match kv-pair-rx cur) (let ((kv-pair (irregex-split (irregex ":") cur)))
-                                                 (update-task acc addons: (cons (cons (car kv-pair) (cadr kv-pair)) (task-addons acc)))))
-               (#t (update-task acc name: (if (task-name acc)
-                                              (format #f "~a ~a" (task-name acc) cur)
-                                              cur)))))
-           task
-           (if (and (task-completed task)
-                    (irregex-match priority-rx (car tokens)))
-               (cdr tokens)
-               tokens))))
+(define (assoc-v k l)
+  (let [(kv (assoc k l))]
+    (if kv
+        (cdr kv)
+        '())))
+(define (merge-alist l)
+  (let loop [(acc '()) (l l)]
+    (if (null-list? l)
+        acc
+        (let* [(h (car l))
+               (k (car h))
+               (v (cdr h))]
+          (loop (cons (cons k (append (list v) (assoc-v k acc))) acc) (cdr l))))))
+(define (merge-text l)
+  (cons (cons 'text (string-trim-both (string-join (reverse (assoc-v 'text l)) " "))) l))
+(define (weed l)
+  (filter identity l))
+(define space
+  char-set:whitespace)
+(define -space
+  (char-set-difference char-set:graphic char-set:whitespace))
+(define legal-text
+  (as-string (repeated (in -space))))
+(define digit
+  (in char-set:digit))
+(define (as-number c)
+  (bind (as-string c)
+        (lambda (x)
+          (result (string->number x)))))
+(define (digits n)
+  (as-number (repeated digit n)))
+(define dash
+  (char-seq "-"))
+(define (date k)
+  (sequence* ((y (digits 4)) (_ dash) (m (digits 2)) (_ dash) (d (digits 2)))
+             (result (cons k (make-date 0 0 0 0 d m y)))))
+(define completed
+  (bind (char-seq "x ")
+        (lambda (x)
+          (when x
+            (result (cons 'done #t))))))
+(define (mark-whitespace p)
+  (bind p
+        (lambda (x) (result (cons 'whitespace x)))))
+(define whitespace
+  (mark-whitespace (as-string (one-or-more (in space)))))
+(define non-mandatory-whitespace
+  (mark-whitespace (as-string (zero-or-more (in space)))))
+(define done
+  (sequence completed  (maybe (date 'completed-date))))
+(define priority-char
+  (char-seq-match "[A-Z]"))
+(define priority
+  (enclosed-by (is #\() (as-string priority-char) (char-seq ") ")))
+(define (denoted-by k p)
+  (bind (preceded-by p legal-text)
+             (lambda (v) (result (cons k v))))
+  )
+(define context
+  (denoted-by 'context (is #\@)))
+(define project
+  (denoted-by 'project (is #\+)))
+(define property-text
+  (as-string (repeated (in (char-set-difference char-set:graphic (->char-set " :"))))))
+(define property
+  (sequence* ((k property-text) (_ (char-seq ":")) (v legal-text))
+             (result (cons 'property (cons k v)))))
+(define text
+  (bind (none-of* property context project legal-text)
+        (lambda (x)
+          (result (cons 'text x)))))
+(define (assoc-or k l default)
+  (if (and l (assoc k l))
+      (assoc-v k l)
+      default))
+(define (assoc-or-f k l)
+  (assoc-or k l #f))
+(define generic-section
+  (any-of property context project text))
+(define todo
+  (sequence* ((t generic-section) (_ non-mandatory-whitespace))
+             (result t)))
+(define task
+  (sequence* ((d (maybe done)) (_ (maybe whitespace)) (p (maybe priority)) (start-date (maybe (sequence* ((d (date 'date)) (_ whitespace)) d))) (t* (repeated todo until: end-of-input)))
+             (let [(t* (merge-text (merge-alist (weed t*))))
+                   (d (if (not d) d (weed d)))]
+               (result (update-task (new-task)
+                            done: (assoc-or-f 'done d)
+                            completed-date: (assoc-or-f 'completed d)
+                            priority: p
+                            date: start-date
+                            text: (assoc-or-f 'text t*)
+                            project: (assoc-or 'project t* '())
+                            context: (assoc-or 'context t* '())
+                            property: (assoc-or 'property t* '()))))))
 (define (task-priority<? a b)
   (cond
    ((and (task-priority a) (task-priority b)) (string<=? (task-priority a) (task-priority b)))
@@ -86,7 +115,7 @@
 (define (task->string task)
   (string-join (filter identity
                        (flatten (list
-                                 (if (task-completed task)
+                                 (if (task-done task)
                                      "x"
                                      #f)
                                  (if (task-priority task)
@@ -94,17 +123,20 @@
                                      #f)
                                  (task-completed-date task)
                                  (task-date task)
-                                 (task-name task)
+                                 (task-text task)
                                  (map (lambda (x) (string-concatenate (list "+" x)))
-                                      (sort (task-projects task) string<?))
+                                      (sort (task-project task) string<?))
                                  (map (lambda (x) (string-concatenate (list "@" x)))
-                                      (sort (task-contexts task) string<?))
-                                 (map (lambda (x) (format #f "~a:~a" (car x) (cdr x))) (task-addons task))))) " "))
+                                      (sort (task-context task) string<?))
+                                 (map (lambda (x) (format #f "~a:~a" (car x) (cdr x))) (task-property task))))) " "))
 (define (parse-filename file)
   (let loop ((lines (string-split (read-all file) "\n")) (acc '()) (id 1))
     (if (null? lines)
-        acc
-        (loop (cdr lines) (cons (update-task (parse-task (car lines))
+        (reverse acc)
+        (loop (cdr lines) (cons (update-task (parse task (car lines))
                                              id: id) acc) (+ id 1)))))
 (define (format-tasks-to-alists tasks)
   (map task->alist tasks))
+(define (format-tasks-as-file tasks)
+  (string-append (string-join (map task->string tasks) "\n") "\n"))
+;; Todo list manipulation
