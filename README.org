@@ -4,6 +4,64 @@ A [[http://todotxt.com/][todo.txt]] client written in Chicken Scheme for those l
 * Why is it?
 Because I can. Also for some peculiar reason the official CLI doesn't work for
 me.
+* Setup
+To start you'll need to get[[http://www.call-cc.org/][ Chicken Scheme]] installed on your system. Refer to
+your distribution's documentation for this.
+
+Firstly you'll need some chicken eggs
+#+BEGIN_SRC shell
+  chicken-install -s list-utilsirregex defstruct fmt
+#+END_SRC
+
+Next run the build command using [[https://ninja-build.org/][ninja]]
+#+BEGIN_SRC shell
+  ninja
+#+END_SRC
+
+Then you need to set the =TODO_FILE= environment variable, this is the location of
+the todo.txt file
+#+BEGIN_SRC shell
+  export TODO_FILE="~/.todo/todo.txt"
+#+END_SRC
+
+Done!
+
 * Examples
-This program is functionally equivalent to the actual shell script, anything
-that would work there will work with this.
+This program should be functionally equivalent to the actual shell script,
+meaning anything that would work there should work with this. Currently not
+everything is there yet, but I'm working on it.
+
+** Adding
+#+BEGIN_SRC shell
+  todo add this is a task that I want to complete
+#+END_SRC
+The =todo add= command is really just writing to a file so you can do things like
+#+BEGIN_SRC shell
+  todo add "(A) test"
+#+END_SRC
+Which will add the priority in the process.
+
+** Listing
+Listing works as you'd expect
+#+BEGIN_SRC shell
+  todo list
+#+END_SRC
+However you may want to search, which you can do by adding any string the end.
+#+BEGIN_SRC shell
+  todo list boss
+#+END_SRC
+Additionally to list even the done todo items try =todo listall=, the same above
+properties work for that too.
+
+** Completing
+To complete simply use the =todo done= command to mark an item as done.
+#+BEGIN_SRC shell
+  todo done 1 # this bit is the task id
+#+END_SRC
+The task id can be found by using the aforementioned list command. For instance
+if you type =todo list= and get an output of
+#+BEGIN_EXAMPLE
+| ID | Priority | Task                                         | Projects | Contexts |
+| 2  | A        | really important task                        |          |          |
+| 3  | B        | not as important, but still needs to be done |          |          |
+#+END_EXAMPLE
