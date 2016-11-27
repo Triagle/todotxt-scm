@@ -1,7 +1,6 @@
 (declare (unit todotxt))
-(require-extension irregex)
-(require-extension defstruct comparse srfi-19-date)
-(use irregex comparse defstruct utils srfi-14 srfi-19-date)
+(require-extension defstruct comparse srfi-19-date fmt)
+(use comparse defstruct utils srfi-14 srfi-19-date fmt)
 (defstruct task
   ;; (A) 2011-03-02 Call Mum +family @phone
   ;; x Do this really important thing
@@ -47,7 +46,7 @@
   (char-seq "-"))
 (define (date k)
   (sequence* ((y (digits 4)) (_ dash) (m (digits 2)) (_ dash) (d (digits 2)))
-             (result (cons k (make-date 0 0 0 0 d m y)))))
+             (result (cons k (list y m d)))))
 (define completed
   (bind (char-seq "x ")
         (lambda (x)
@@ -63,13 +62,13 @@
 (define done
   (sequence completed  (maybe (date 'completed-date))))
 (define priority-char
-  (char-seq-match "[A-Z]"))
+  (bind (char-seq-match "[A-Z]")
+        (o result car string->list)))
 (define priority
-  (enclosed-by (is #\() (as-string priority-char) (char-seq ") ")))
+  (enclosed-by (is #\() priority-char (char-seq ") ")))
 (define (denoted-by k p)
   (bind (preceded-by p legal-text)
-             (lambda (v) (result (cons k v))))
-  )
+             (lambda (v) (result (cons k v)))))
 (define context
   (denoted-by 'context (is #\@)))
 (define project
@@ -95,21 +94,23 @@
   (sequence* ((t generic-section) (_ non-mandatory-whitespace))
              (result t)))
 (define task
-  (sequence* ((d (maybe done)) (_ (maybe whitespace)) (p (maybe priority)) (start-date (maybe (sequence* ((d (date 'date)) (_ whitespace)) d))) (t* (repeated todo until: end-of-input)))
+  (sequence* ((d (maybe done)) (_ (maybe whitespace)) (p (maybe priority)) (start-date (maybe (sequence* ((d (date 'date)) (_ whitespace)) (result d)))) (t* (repeated todo until: end-of-input)))
              (let [(t* (merge-text (merge-alist (weed t*))))
                    (d (if (not d) d (weed d)))]
                (result (update-task (new-task)
                             done: (assoc-or-f 'done d)
                             completed-date: (assoc-or-f 'completed d)
                             priority: p
-                            date: start-date
+                            date: (if start-date (cdr start-date) #f)
                             text: (assoc-or-f 'text t*)
                             project: (assoc-or 'project t* '())
                             context: (assoc-or 'context t* '())
                             property: (assoc-or 'property t* '()))))))
+(define (date->str date)
+  (fmt #f (pad-char #\0 (num (car date)) "-" (pad/left 2 (num (cadr date))) "-" (pad/left 2 (num (caddr date))))))
 (define (task-priority<? a b)
   (cond
-   ((and (task-priority a) (task-priority b)) (string<=? (task-priority a) (task-priority b)))
+   ((and (task-priority a) (task-priority b)) (char<=? (task-priority a) (task-priority b)))
    ((not (task-priority a)) #f)
    ((not (task-priority b)) #t)))
 (define (task->string task)
@@ -121,8 +122,8 @@
                                  (if (task-priority task)
                                      (format "(~a)" (task-priority task))
                                      #f)
-                                 (task-completed-date task)
-                                 (task-date task)
+                                 (if (task-completed-date task) (date->str (task-completed-date task)) #f)
+                                 (if (task-date task) (date->str (task-date task)) #f)
                                  (task-text task)
                                  (map (lambda (x) (string-concatenate (list "+" x)))
                                       (sort (task-project task) string<?))
@@ -130,7 +131,11 @@
                                       (sort (task-context task) string<?))
                                  (map (lambda (x) (format #f "~a:~a" (car x) (cdr x))) (task-property task))))) " "))
 (define (parse-filename file)
-  (let loop ((lines (string-split (read-all file) "\n")) (acc '()) (id 1))
+  (let loop ((lines (filter (lambda (x) (any (complement (cut char-set-contains? char-set:whitespace <>))
+                                               (string->list x)))
+                            (string-split (read-all file) "\n")))
+             (acc '())
+             (id 1))
     (if (null? lines)
         (reverse acc)
         (loop (cdr lines) (cons (update-task (parse task (car lines))

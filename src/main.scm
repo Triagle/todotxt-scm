@@ -1,12 +1,9 @@
 ;; Main CLI interface
 (declare (uses jselect todotxt))
-(require-extension fmt-color)
-(require-extension irregex)
-(require-extension fmt)
-(require-extension fmt-unicode)
-(use fmt fmt-color fmt-unicode irregex utils)
+(require-extension fmt fmt-unicode comparse irregex fmt-color)
+(use fmt fmt-color fmt-unicode irregex utils comparse)
 (define (join-structs structs accessing-function joiner)
-  (string-join (filter identity (map accessing-function structs)) joiner))
+  (string-join (map ->string (filter identity (map accessing-function structs))) joiner))
 (define (write-to-a-file path txt)
   (call-with-output-file path
     (lambda (output-port)
@@ -19,24 +16,26 @@
 (define (colour-priority task)
   (let ((priority (task-priority task)))
     (cond
-     ((equal? priority "A") (fmt #f (fmt-bold priority)))
+     ((equal? priority #\A) (fmt #f (fmt-bold priority)))
      (#t priority))))
 ;; Usage
 ;; (define-cli-interface args (("list" '(filter) (print "hello world"))))
 (define-syntax define-cli-interface
   (syntax-rules ()
     ((_ args (actions* ...) (extension* ...))
-       (define-cli-interface args (actions* ... extension* ...)))
+     (define-cli-interface args (actions* ... extension* ...)))
     ((_ args (((argument-strings* ...) (argument-names* ...) . body)  actions* ...))
      (if (and (>= (length args) 1) (or (equal? (car args) '(argument-strings* ...)) (member (car args) '(argument-strings* ...))))
-         (if (or (equal? '(#f) '(argument-names* ...)) (>= (length (cdr args)) (length '(argument-names* ...))) )
-             (begin . body)
-             (format #t "Usage: todo ~a ~a~%"
-                     (string-join '(argument-strings* ...) "/")
-                     (string-join
-                      (map (lambda (cur)
-                            (format #f "[~a]" cur)) '(argument-names* ...)) " ")))
+         (cond
+          [(>= (length (cdr args)) (length '(argument-names* ...))) (begin . body)]
+          [#t (format #t "Usage: todo ~a ~a~%"
+                      (string-join '(argument-strings* ...) "/")
+                      (string-join
+                       (map (lambda (cur)
+                              (format #f "[~a]" cur)) '(argument-names* ...)) " "))])
          (define-cli-interface args (actions* ...))))
+
+
     ((_ args ())
      (format #t "Usage: todo [action-name] [action-args]~%"))))
 (define (with-task-at-id tasks id thunk)
@@ -53,7 +52,7 @@
          (report (string-append todo-dir "report.txt"))
          (action-args (cdr args)))
     (define-cli-interface args
-      ((("list" "ls" "listall") (#f)
+      ((("list" "ls" "listall") ()
         (let ((tasks (sort (filter (lambda (x)
                                      (and (or (equal? action "listall") (not (task-done x)))
                                           (if (= (length (cdr args)) 0)
@@ -77,57 +76,75 @@
                                                                                     (string-join (map (lambda (addon)
                                                                                                         (fmt #f (dsp (car addon)) (dsp ":") (dsp (cdr addon)))) (task-property x)) ", "))
                                                                             "\n")))) " |")))))
-       (("listproj" "lsprj") (#f)
-        (fmt #t (fmt-unicode (dsp (string-join (filter
-                                                (lambda (x) (if (= (length action-args) 0)
-                                                                #t
-                                                                (irregex-match  (irregex (string-concatenate (list ".*" (irregex-quote (string-join action-args " ")) ".*"))) x)))
-                                                (delete-duplicates (flatten (map task-project tasks)))) "\n")) nl)))
+       (("listproj" "lsprj") (project)
+        (let ((project (car action-args)))
+          (fmt #t (fmt-unicode (dsp (string-join (filter
+                                                  (lambda (x) (if (= (length action-args) 0)
+                                                                  #t
+                                                                  (irregex-match  (irregex (string-concatenate (list ".*" (irregex-quote project) ".*"))) x)))
+                                                  (delete-duplicates (flatten (map task-project tasks)))) "\n")) nl))))
 
-       (("listcon" "lsc") (#f)
-        (fmt #t (fmt-unicode (dsp (string-join (filter
-                                                (lambda (x) (if (= (length action-args) 0)
-                                                                #t
-                                                                (irregex-match  (irregex (string-concatenate (list ".*" (irregex-quote (string-join action-args " ")) ".*"))) x)))
-                                                (delete-duplicates (flatten (map task-context tasks)))) "\n")) nl)))
+       (("listcon" "lsc") (context)
+        (let ((context (car action-args)))
+          (fmt #t (fmt-unicode (dsp (string-join (filter
+                                                  (lambda (x) (if (= (length action-args) 0)
+                                                                  #t
+                                                                  (irregex-match  (irregex (string-concatenate (list ".*" (irregex-quote context) ".*"))) x)))
+                                                  (delete-duplicates (flatten (map task-context tasks)))) "\n")) nl))))
 
        (("rm" "del") (id)
-        (overwrite-file todo-file (format-tasks-as-file
-                                   (remove (lambda (task)
-                                             (= (task-id task) (string->number (cadr args)))) tasks))))
+        (let ((id (car action-args)))
+          (overwrite-file todo-file (format-tasks-as-file
+                                     (remove (lambda (task)
+                                               (= (task-id task) (string->number id))) tasks)))))
        (("replace") (id todo)
-        (let ((new-task (string-join (cddr args) " ")))
+        (let ((id (car action-args))
+              (todo (cdr action-args)))
           (overwrite-file todo-file (fmt #f
                                          (dsp
                                           (format-tasks-as-file
                                            (remove (lambda (task)
-                                                     (= (task-id task) (string->number (cadr args)))) tasks)))
-                                         new-task
+                                                     (= (task-id task) (string->number id))) tasks)))
+                                         (string-join todo " ")
                                          nl))))
-       (("add" "a") (todo)
+       (("add" "a") ()
         (write-to-a-file todo-file (string-join action-args " ")))
        (("done" "do" "mark" "complete" "tick") (id)
-        (write-to-a-file done-file (format-tasks-as-file
-                                    (remove (lambda (task)
-                                              (not (task-done task))) (with-task-at-id tasks (string->number (cadr args)) (cut update-task <> completed: #t)))))
-        (overwrite-file todo-file (format-tasks-as-file (remove (lambda (task)
-                                                                  (= (task-id task) (string->number (cadr args)))) tasks))))
+        (let ((id (car action-args)))
+          (write-to-a-file done-file (format-tasks-as-file
+                                      (remove (lambda (task)
+                                                (not (task-done task))) (with-task-at-id tasks (string->number id) (cut update-task <> completed: #t)))))
+          (overwrite-file todo-file (format-tasks-as-file (remove (lambda (task)
+                                                                    (= (task-id task) (string->number id))) tasks)))))
+       (("bump") (id)
+        (let ((id (car action-args)))
+          (overwrite-file todo-file (format-tasks-as-file (with-task-at-id tasks (string->number id)
+                                                                           (lambda (t)
+                                                                             (update-task t priority: (cond ((equal? (task-priority t) #\A) #\A)
+                                                                                                            ((not (task-priority t)) #\Z)
+                                                                                                            (#t (integer->char (- (char->integer (task-priority t)) 1)))))))))))
        (("add-context" "ac") (id context)
-        (overwrite-file todo-file (format-tasks-as-file (with-task-at-id tasks (string->number (car action-args))
-                                                                         (lambda (t)
-                                                                           (update-task t context: (cons (cadr action-args) (task-context t))))))))
+        (let ((id (car action-args))
+              (context (cadr action-args)))
+          (overwrite-file todo-file (format-tasks-as-file (with-task-at-id tasks (string->number id)
+                                                                           (lambda (t)
+                                                                             (update-task t context: (cons context (task-context t)))))))))
 
        (("add-project" "ap") (id project)
-        (overwrite-file todo-file (format-tasks-as-file (with-task-at-id tasks (string->number (car action-args))
-                                                                         (lambda (t)
-                                                                           (update-task t project: (cons (cadr action-args) (task-project t))))))))
+        (let ((id (car action-args))
+              (project (cadr action-args)))
+          (overwrite-file todo-file (format-tasks-as-file (with-task-at-id tasks (string->number id)
+                                                                           (lambda (t)
+                                                                             (update-task t project: (cons project (task-project t)))))))))
        (("pri") (id new-priority)
-        (if (or (equal? (caddr args) "-") (parse priority (format #f "(~a) " (caddr args))))
-            (overwrite-file todo-file (format-tasks-as-file (with-task-at-id tasks (string->number (cadr args))
-                                                                             priority: (if (equal? (caddr args) "-")
-                                                                                           #f
-                                                                                           (caddr args)))))
-            (fmt #t (fmt-bold (fmt-red (dsp "Invalid Priority: "))) (dsp (caddr args)) nl)))))))
+        (let ((id (car action-args))
+              (new-priority (cadr action-args)))
+              (if (or (equal? new-priority "-") (parse priority (format #f "(~a) " new-priority)))
+                  (overwrite-file todo-file (format-tasks-as-file (with-task-at-id tasks (string->number id)
+                                                                                   (cut update-task <> priority: (if (equal? (caddr args) "-")
+                                                                                                                     #f
+                                                                                                                     new-priority)))))
+                  (fmt #t (fmt-bold (fmt-red (dsp "Invalid Priority: "))) (dsp new-priority) nl))))))))
 (if (> (length (argv)) 1)
     (run (cdr (argv)))
     (fmt #t (dsp "todo [action-name] [action-args]") nl))
