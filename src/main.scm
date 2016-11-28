@@ -151,6 +151,14 @@
                                                                                                             ((not (task-priority t)) #\A)
 
                                                                                                             (#t (integer->char (- (char->integer (task-priority t)) 1)))))))))))
+
+       (("curb" "demote") (id)
+        (let ((id (car action-args)))
+          (overwrite-file todo-file (format-tasks-as-file (with-task-at-id tasks (string->number id)
+                                                                           (lambda (t)
+                                                                             (update-task t priority: (cond ((equal? (task-priority t) #\Z) #\Z)
+                                                                                                            ((not (task-priority t)) #\Z)
+                                                                                                            (#t (integer->char (+ (char->integer (task-priority t)) 1)))))))))))
        (("add-context" "ac") (id context)
         (let ((id (car action-args))
               (context (cadr action-args)))
