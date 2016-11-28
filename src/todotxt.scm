@@ -1,6 +1,6 @@
 (declare (unit todotxt))
-(require-extension defstruct comparse srfi-19-date fmt)
-(use comparse defstruct utils srfi-14 srfi-19-date fmt)
+(require-extension defstruct comparse srfi-19-date srfi-19-time fmt numbers)
+(use comparse defstruct utils srfi-14 srfi-19-date srfi-19-time fmt numbers)
 (defstruct task
   ;; (A) 2011-03-02 Call Mum +family @phone
   ;; x Do this really important thing
@@ -108,6 +108,19 @@
                             property: (assoc-or 'property t* '()))))))
 (define (date->str date)
   (fmt #f (pad-char #\0 (num (car date)) "-" (pad/left 2 (num (cadr date))) "-" (pad/left 2 (num (caddr date))))))
+(define (time->days time)
+  (/ (time->seconds time) 86400))
+(define (tdate->date date-obj)
+  (make-date 0 0 0 0 (caddr date-obj) (cadr date-obj) (car date-obj)))
+
+(define (date-soon date-str)
+  ;; Note that date at this point is a string
+  (let [(date (parse (date 'date) date-str))]
+    (if date
+     (let [(now (current-date))
+           (date (tdate->date (cdr date)))]
+       (or (date>=? now date) (< (abs (time->days (date-difference now date))) 3)))
+     #f)))
 (define (task-priority<? a b)
   (cond
    ((and (task-priority a) (task-priority b)) (char<=? (task-priority a) (task-priority b)))
