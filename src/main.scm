@@ -20,8 +20,6 @@
     (cond
      ((equal? priority #\A) (fmt #f (fmt-bold priority)))
      (#t priority))))
-;; Usage
-;; (define-cli-interface args (("list" '(filter) (print "hello world"))))
 (define-syntax define-cli-interface
   (syntax-rules ()
     ((_ args (actions* ...) (extension* ...))
