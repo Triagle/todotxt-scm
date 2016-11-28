@@ -55,7 +55,8 @@
          (action-args (cdr args)))
     (define-cli-interface args
       ((("list" "ls" "listall") ()
-        (let ((tasks (sort (filter (lambda (x)
+        (let ((task-count (length tasks))
+              (tasks (sort (filter (lambda (x)
                                      (and (or (equal? action "listall") (not (task-done x)))
                                           (if (= (length (cdr args)) 0)
                                               #t
@@ -76,8 +77,16 @@
                     (dsp (string-concatenate (list "Contexts\n" (join-structs tasks (lambda (x) (string-join (task-context x) ", ")) "\n")))) " | "
                     (dsp (string-concatenate (list "Addons\n" (join-structs tasks (lambda (x)
                                                                                     (string-join (map (lambda (addon)
-                                                                                                        (fmt #f (dsp (car addon)) (dsp ":") (dsp (cdr addon)))) (task-property x)) ", "))
-                                                                            "\n")))) " |")))))
+                                                                                                        (fmt #f
+                                                                                                             ((if (and (equal? (car addon) "due") (date-soon (cdr addon)))
+                                                                                                                  (o dsp fmt-bold fmt-red)
+                                                                                                                  dsp) (car addon)) (dsp ":") (dsp (cdr addon)))) (task-property x)) ", "))
+                                                                            "\n")))) " |")
+                   "---" nl
+                   (length tasks) " out of " task-count " task" (if (= task-count 1)
+                                                            ""
+                                                            "s") " shown." nl
+                   ))))
        (("listproj" "lsprj") (project)
         (let ((project (car action-args)))
           (fmt #t (fmt-unicode (dsp (string-join (filter
