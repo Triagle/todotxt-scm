@@ -1,6 +1,6 @@
 (declare (unit todotxt))
-(require-extension defstruct comparse srfi-19-date srfi-19-time fmt numbers)
-(use comparse defstruct utils srfi-14 srfi-19-date srfi-19-time fmt numbers)
+(require-extension defstruct comparse srfi-19-date srfi-19-time fmt numbers srfi-19-io)
+(use comparse defstruct utils srfi-14 srfi-19-date srfi-19-time fmt numbers srfi-19-io)
 (defstruct task
   ;; (A) 2011-03-02 Call Mum +family @phone
   ;; x Do this really important thing
@@ -11,6 +11,8 @@
    projects: '()
    contexts: '()
    addons: '()))
+(define (rm-prop k l)
+  (remove (lambda (kv) (equal? (car kv) k)) l))
 (define (assoc-v k l)
   (let [(kv (assoc k l))]
     (if kv
@@ -112,6 +114,8 @@
   (/ (time->seconds time) 86400))
 (define (tdate->date date-obj)
   (make-date 0 0 0 0 (caddr date-obj) (cadr date-obj) (car date-obj)))
+(define (date->datestr date-obj)
+  (format-date "~Y-~m-~d" date-obj))
 
 (define (date-soon date-str)
   ;; Note that date at this point is a string
@@ -121,6 +125,13 @@
            (date (tdate->date (cdr date)))]
        (or (date>=? now date) (< (abs (time->days (date-difference now date))) 3)))
      #f)))
+(define (task-due-add task days)
+  (update-task task
+          property: (cons (cons "due" (date->datestr
+                                       (date-add-duration (tdate->date (cdr (parse (date 'date)
+                                                               (assoc-v "due" (task-property task)))))
+                                                        (make-duration days: days))))
+                          (rm-prop "due" (task-property task)))))
 (define (task-priority<? a b)
   (cond
    ((and (task-priority a) (task-priority b)) (char<=? (task-priority a) (task-priority b)))

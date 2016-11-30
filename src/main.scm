@@ -2,8 +2,6 @@
 (declare (uses jselect todotxt))
 (require-extension fmt fmt-unicode comparse irregex fmt-color)
 (use fmt fmt-color fmt-unicode irregex utils comparse)
-(define (rm-prop k l)
-  (remove (lambda (kv) (equal? (car kv) k)) l))
 (define (as-ids arg)
   (map string->number (string-split arg ",")))
 (define (join-structs structs accessing-function joiner)
@@ -44,6 +42,8 @@
   (map (lambda (task) (if (= (task-id task) id)
                           (thunk task)
                           task)) tasks))
+(define (with-tasks-at-ids tasks ids thunk)
+  (foldr (lambda (id tasks) (with-task-at-id tasks id thunk)) tasks ids))
 (define (run args)
   (let* ((action (or (= (length args) 0) (car args)))
          (todo-dir (or (get-environment-variable "TODO_DIR") "./"))
@@ -140,43 +140,45 @@
           (write-to-a-file done-file (format-tasks-as-file
                                       (remove (lambda (task)
                                                 (not (task-done task)))
-                                              (foldr (lambda (id tasks)
-                                                       (with-task-at-id tasks id (cut update-task <> done: #t))) tasks ids))))
-          (overwrite-file todo-file (format-tasks-as-file (remove (lambda (task)
-                                                                    (member (task-id task) ids)) tasks)))))
+                                              (with-tasks-at-ids tasks ids (cut update-task <> done: #t)))))
+          (overwrite-file todo-file (format-tasks-as-file (with-tasks-at-ids (remove (lambda (task)
+                                                                                       (and (member (task-id task) ids)
+                                                                                            (not (assoc "recur" (task-property task))))) tasks) ids
+                                                                                            (lambda (t)
+                                                                                              (if (and (assoc "recur" (task-property t)) (assoc "due" (task-property t)))
+                                                                                                  (begin
+                                                                                                    (fmt #t (fmt-unicode (fmt-bold "Adding consecutive todo item " (dsp (assoc-v "recur" (task-property t))) " days from " (dsp (assoc-v "due" (task-property t)))) nl) )
+                                                                                                    (task-due-add t (string->number (assoc-v "recur" (task-property t)))))
+                                                                                                  t)))))))
        (("bump" "promote") (ids)
         (let ((ids (as-ids (car action-args))))
-          (overwrite-file todo-file (format-tasks-as-file (foldr (lambda (id tasks)
-                                                                   (with-task-at-id tasks id
+          (overwrite-file todo-file (format-tasks-as-file (with-tasks-at-ids tasks ids
                                                                            (lambda (t)
                                                                              (update-task t priority: (cond ((equal? (task-priority t) #\A) #\A)
                                                                                                             ((not (task-priority t)) #\A)
 
-                                                                                                            (#t (integer->char (- (char->integer (task-priority t)) 1)))))) )) tasks ids)))))
+                                                                                                            (#t (integer->char (- (char->integer (task-priority t)) 1)))))) )))))
 
        (("curb" "demote") (ids)
         (let ((ids (as-ids (car action-args))))
-          (overwrite-file todo-file (format-tasks-as-file (foldr (lambda (id tasks)
-                                                                   (with-task-at-id tasks id
+          (overwrite-file todo-file (format-tasks-as-file (with-tasks-at-ids tasks ids
                                                                            (lambda (t)
                                                                              (update-task t priority: (cond ((equal? (task-priority t) #\Z) #\Z)
                                                                                                             ((not (task-priority t)) #\Z)
-                                                                                                            (#t (integer->char (+ (char->integer (task-priority t)) 1)))))))) tasks ids)))))
+                                                                                                            (#t (integer->char (+ (char->integer (task-priority t)) 1)))))))))))
        (("add-context" "ac") (ids context)
         (let ((ids (as-ids (car action-args)))
               (context (cadr action-args)))
-          (overwrite-file todo-file (format-tasks-as-file (foldr (lambda (id tasks)
-                                                                   (with-task-at-id tasks id
+          (overwrite-file todo-file (format-tasks-as-file (with-tasks-at-ids tasks ids
                                                                            (lambda (t)
-                                                                             (update-task t context: (cons context (task-context t)))))) tasks ids)))))
+                                                                             (update-task t context: (cons context (task-context t)))))))))
 
        (("add-project" "ap") (ids project)
         (let ((ids (as-ids (car action-args)))
               (project (cadr action-args)))
-          (overwrite-file todo-file (format-tasks-as-file (foldr (lambda (id tasks)
-                                                                   (with-task-at-id tasks id
-                                                                                    (lambda (t)
-                                                                                      (update-task t project: (cons project (task-project t)))))) tasks ids)))))
+          (overwrite-file todo-file (format-tasks-as-file (with-tasks-at-ids tasks ids
+                                                                           (lambda (t)
+                                                                             (update-task t project: (cons project (task-project t)))))))))
        (("pri") (id new-priority)
         (let ((id (car action-args))
               (new-priority (cadr action-args)))
