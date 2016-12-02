@@ -3,6 +3,6 @@ rule scm
 rule link
      command = csc $in -o $out
 build build/object/todotxt.o: scm src/todotxt.scm
-build build/object/jselect.o: scm src/jselect.scm
+build build/object/utils.o: scm src/utils.scm
 build build/object/main.o: scm src/main.scm
-build build/todo: link build/object/todotxt.o build/object/jselect.o build/object/main.o
+build build/todo: link build/object/utils.o  build/object/todotxt.o build/object/main.o

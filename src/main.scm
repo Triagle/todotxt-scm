@@ -1,20 +1,11 @@
 ;; Main CLI interface
-(declare (uses jselect todotxt))
+(declare (uses todotxt todotxt-utils))
 (require-extension fmt fmt-unicode comparse irregex fmt-color)
 (use fmt fmt-color fmt-unicode irregex utils comparse)
 (define (as-ids arg)
   (map string->number (string-split arg ",")))
 (define (join-structs structs accessing-function joiner)
   (string-join (map ->string (filter identity (map accessing-function structs))) joiner))
-(define (write-to-a-file path txt)
-  (call-with-output-file path
-    (lambda (output-port)
-      (format output-port "~a~%" txt))
-    #:append))
-(define (overwrite-file path txt)
-  (call-with-output-file path
-    (lambda (output-port)
-      (format output-port txt))))
 (define (colour-priority task)
   (let ((priority (task-priority task)))
     (cond

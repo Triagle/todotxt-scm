@@ -1,4 +1,5 @@
 (declare (unit todotxt))
+(declare (uses todotxt-utils))
 (require-extension defstruct comparse srfi-19-date srfi-19-time fmt numbers srfi-19-io)
 (use comparse defstruct utils srfi-14 srfi-19-date srfi-19-time fmt numbers srfi-19-io)
 (defstruct task
@@ -11,21 +12,6 @@
    projects: '()
    contexts: '()
    addons: '()))
-(define (rm-prop k l)
-  (remove (lambda (kv) (equal? (car kv) k)) l))
-(define (assoc-v k l)
-  (let [(kv (assoc k l))]
-    (if kv
-        (cdr kv)
-        '())))
-(define (merge-alist l)
-  (let loop [(acc '()) (l l)]
-    (if (null-list? l)
-        acc
-        (let* [(h (car l))
-               (k (car h))
-               (v (cdr h))]
-          (loop (cons (cons k (append (list v) (assoc-v k acc))) acc) (cdr l))))))
 (define (merge-text l)
   (cons (cons 'text (string-trim-both (string-join (reverse (assoc-v 'text l)) " "))) l))
 (define (weed l)
@@ -84,12 +70,6 @@
   (bind (none-of* property context project legal-text)
         (lambda (x)
           (result (cons 'text x)))))
-(define (assoc-or k l default)
-  (if (and l (assoc k l))
-      (assoc-v k l)
-      default))
-(define (assoc-or-f k l)
-  (assoc-or k l #f))
 (define generic-section
   (any-of property context project text))
 (define todo

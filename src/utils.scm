@@ -1,3 +1,4 @@
+(declare (unit todotxt-utils))
 (define (write-to-a-file path txt)
   (call-with-output-file path
     (lambda (output-port)
