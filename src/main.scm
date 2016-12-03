@@ -84,6 +84,11 @@
            (length tasks) " out of " task-count " task" (if (= task-count 1)
                                                             ""
                                                             "s") " shown." nl)))
+       (("next") ()
+        (let [(tasks (sort (filter (standard-task-filter (string-join action-args " " ) #f) tasks) task-priority<?))]
+          (if tasks
+              (print (task->string (car tasks)))
+              (print "No tasks to do next."))))
        (("inbox" "in") ()
         (let [(tasks (filter task-inbox tasks))]
           (print-tasks tasks)))
