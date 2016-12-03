@@ -12,6 +12,27 @@
     (cond
      ((equal? priority #\A) (fmt #f (fmt-bold priority)))
      (#t priority))))
+(define (print-tasks tasks)
+(fmt #t (fmt-unicode
+                   (tabular
+                    "| " (dsp (string-concatenate (list "ID\n" (join-structs tasks (lambda (x) (if (task-done x)
+                                                                                                   "x"
+                                                                                                   (fmt #f (num (task-id x))))) "\n")))) " | "
+                    (dsp (string-concatenate (list "Priority\n" (join-structs tasks colour-priority "\n")))) " | "
+                    (dsp (string-concatenate (list "Task\n" (join-structs tasks (lambda (task)
+                                                                                  (if (task-done task)
+                                                                                      (fmt #f (fmt-unicode (fmt-green (dsp (task-text task)))))
+                                                                                      (task-text task))) "\n")))) " | "
+
+                    (dsp (string-concatenate (list "Projects\n" (join-structs tasks (lambda (x) (string-join (task-project x) ", ")) "\n")))) " | "
+                    (dsp (string-concatenate (list "Contexts\n" (join-structs tasks (lambda (x) (string-join (task-context x) ", ")) "\n")))) " | "
+                    (dsp (string-concatenate (list "Addons\n" (join-structs tasks (lambda (x)
+                                                                                    (string-join (map (lambda (addon)
+                                                                                                        (fmt #f
+                                                                                                             ((if (and (equal? (car addon) "due") (date-soon (cdr addon)))
+                                                                                                                  (o dsp fmt-bold fmt-red)
+                                                                                                                  dsp) (car addon)) (dsp ":") (dsp (cdr addon)))) (task-property x)) ", "))
+                                                                            "\n")))) " |"))))
 (define-syntax define-cli-interface
   (syntax-rules ()
     ((_ args (actions* ...) (extension* ...))
@@ -36,6 +57,13 @@
                           task)) tasks))
 (define (with-tasks-at-ids tasks ids thunk)
   (foldr (lambda (id tasks) (with-task-at-id tasks id thunk)) tasks ids))
+(define (standard-task-filter filter-args show-all?)
+  (lambda (x)
+    (and (not (task-inbox x))
+         (or show-all? (not (task-done x)) )
+         (if (zero? (string-length filter-args))
+             (not (task-inbox x))
+             (irregex-match  (irregex (string-concatenate (list ".*" (irregex-quote filter-args) ".*"))) (task->string x))))))
 (define (run args)
   (let* ((action (or (= (length args) 0) (car args)))
          (todo-dir (or (get-environment-variable "TODO_DIR") "./"))
@@ -48,37 +76,20 @@
     (define-cli-interface args
       ((("list" "ls" "listall") ()
         (let ((task-count (length tasks))
-              (tasks (sort (filter (lambda (x)
-                                     (and (or (equal? action "listall") (not (task-done x)))
-                                          (if (= (length (cdr args)) 0)
-                                              #t
-                                              (irregex-match  (irregex (string-concatenate (list ".*" (irregex-quote (string-join (cdr args) " ")) ".*"))) (task->string x)))))
+              (tasks (sort (filter (standard-task-filter (string-join action-args " ") (equal? action "listall"))
                                    (append tasks done-tasks)) task-priority<?)))
-          (fmt #t (fmt-unicode
-                   (tabular
-                    "| " (dsp (string-concatenate (list "ID\n" (join-structs tasks (lambda (x) (if (task-done x)
-                                                                                                   "x"
-                                                                                                   (fmt #f (num (task-id x))))) "\n")))) " | "
-                    (dsp (string-concatenate (list "Priority\n" (join-structs tasks colour-priority "\n")))) " | "
-                    (dsp (string-concatenate (list "Task\n" (join-structs tasks (lambda (task)
-                                                                                  (if (task-done task)
-                                                                                      (fmt #f (fmt-unicode (fmt-green (dsp (task-text task)))))
-                                                                                      (task-text task))) "\n")))) " | "
-
-                    (dsp (string-concatenate (list "Projects\n" (join-structs tasks (lambda (x) (string-join (task-project x) ", ")) "\n")))) " | "
-                    (dsp (string-concatenate (list "Contexts\n" (join-structs tasks (lambda (x) (string-join (task-context x) ", ")) "\n")))) " | "
-                    (dsp (string-concatenate (list "Addons\n" (join-structs tasks (lambda (x)
-                                                                                    (string-join (map (lambda (addon)
-                                                                                                        (fmt #f
-                                                                                                             ((if (and (equal? (car addon) "due") (date-soon (cdr addon)))
-                                                                                                                  (o dsp fmt-bold fmt-red)
-                                                                                                                  dsp) (car addon)) (dsp ":") (dsp (cdr addon)))) (task-property x)) ", "))
-                                                                            "\n")))) " |")
-                   "---" nl
-                   (length tasks) " out of " task-count " task" (if (= task-count 1)
+          (print-tasks tasks)
+          (fmt #t
+           "---" nl
+           (length tasks) " out of " task-count " task" (if (= task-count 1)
                                                             ""
-                                                            "s") " shown." nl
-                   ))))
+                                                            "s") " shown." nl)))
+       (("inbox" "in") ()
+        (let [(tasks (filter task-inbox tasks))]
+          (print-tasks tasks)))
+       (("refile") (id)
+        (overwrite-file todo-file (format-tasks-as-file (with-task-at-id tasks (string->number (car action-args))
+                                                                         (cut update-task <> inbox: #f)))))
        (("listproj" "lsprj") (project)
         (let ((project (car action-args)))
           (fmt #t (fmt-unicode (dsp (string-join (filter
