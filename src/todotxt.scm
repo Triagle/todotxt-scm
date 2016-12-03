@@ -5,7 +5,7 @@
 (defstruct task
   ;; (A) 2011-03-02 Call Mum +family @phone
   ;; x Do this really important thing
-  id done completed-date date priority text project context property)
+  inbox id done completed-date date priority text project context property)
 ;; Todo.txt regexes
 (define (new-task)
   (make-task
@@ -43,6 +43,8 @@
 (define (mark-whitespace p)
   (bind p
         (lambda (x) (result (cons 'whitespace x)))))
+(define inbox
+  (char-seq "* "))
 (define whitespace
   (mark-whitespace (as-string (one-or-more (in space)))))
 (define non-mandatory-whitespace
@@ -76,10 +78,11 @@
   (sequence* ((t generic-section) (_ non-mandatory-whitespace))
              (result t)))
 (define task
-  (sequence* ((d (maybe done)) (_ (maybe whitespace)) (p (maybe priority)) (start-date (maybe (sequence* ((d (date 'date)) (_ whitespace)) (result d)))) (t* (repeated todo until: end-of-input)))
+  (sequence* ((inbox (maybe inbox))(d (maybe done)) (_ (maybe whitespace)) (p (maybe priority)) (start-date (maybe (sequence* ((d (date 'date)) (_ whitespace)) (result d)))) (t* (repeated todo until: end-of-input)))
              (let [(t* (merge-text (merge-alist (weed t*))))
                    (d (if (not d) d (weed d)))]
                (result (update-task (new-task)
+                            inbox: inbox
                             done: (assoc-or-f 'done d)
                             completed-date: (assoc-or-f 'completed d)
                             priority: p
@@ -124,6 +127,9 @@
 (define (task->string task)
   (string-join (filter identity
                        (flatten (list
+                                 (if (task-inbox task)
+                                     "*"
+                                     #f)
                                  (if (task-done task)
                                      "x"
                                      #f)
