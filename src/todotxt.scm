@@ -106,12 +106,16 @@
        (or (date>=? now date) (< (abs (time->days (date-difference now date))) 3)))
      #f)))
 (define (task-due-add task days)
-  (update-task task
-          property: (cons (cons "due" (date->datestr
-                                       (date-add-duration (tdate->date (cdr (parse (date 'date)
-                                                               (assoc-v "due" (task-property task)))))
-                                                        (make-duration days: days))))
-                          (rm-prop "due" (task-property task)))))
+  (let [(task-date (tdate->date (cdr (parse (date 'date)
+                                            (assoc-v "due" (task-property task))))))
+        (today (current-date))]
+    (update-task task
+                 property: (cons (cons "due" (date->datestr
+                                              (date-add-duration (if (date>? today task-date)
+                                                                     today
+                                                                     task-date)
+                                                                 (make-duration days: days))))
+                                 (rm-prop "due" (task-property task))))))
 (define (task-priority<? a b)
   (cond
    ((and (task-priority a) (task-priority b)) (char<=? (task-priority a) (task-priority b)))

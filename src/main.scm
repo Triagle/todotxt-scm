@@ -2,6 +2,7 @@
 (declare (uses todotxt todotxt-utils))
 (require-extension fmt fmt-unicode comparse irregex fmt-color)
 (use fmt fmt-color fmt-unicode irregex utils comparse)
+
 (define (as-ids arg)
   (map string->number (string-split arg ",")))
 (define (join-structs structs accessing-function joiner)
@@ -138,7 +139,7 @@
                                                                                             (lambda (t)
                                                                                               (if (and (assoc "recur" (task-property t)) (assoc "due" (task-property t)))
                                                                                                   (begin
-                                                                                                    (fmt #t (fmt-unicode (fmt-bold "Adding consecutive todo item " (dsp (assoc-v "recur" (task-property t))) " days from " (dsp (assoc-v "due" (task-property t)))) nl) )
+                                                                                                    (fmt #t (fmt-unicode (fmt-bold "Task is recurrent, adding another in the future") nl) )
                                                                                                     (task-due-add t (string->number (assoc-v "recur" (task-property t)))))
                                                                                                   t)))))))
        (("bump" "promote") (ids)
