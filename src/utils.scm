@@ -23,9 +23,9 @@
                (k (car h))
                (v (cdr h))]
           (loop (cons (cons k (append (list v) (assoc-v k acc))) acc) (cdr l))))))
-(define (assoc-or k l default)
+(define (assoc-or k l #!key (default #f))
   (if (and l (assoc k l))
       (assoc-v k l)
       default))
-(define (assoc-or-f k l)
-  (assoc-or k l #f))
+(define (weed l)
+  (filter identity l))

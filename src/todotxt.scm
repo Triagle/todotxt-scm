@@ -12,10 +12,11 @@
    projects: '()
    contexts: '()
    addons: '()))
+(define (mark-with parser key)
+  (bind parser
+        (o result (cut cons key <>))))
 (define (merge-text l)
   (cons (cons 'text (string-trim-both (string-join (reverse (assoc-v 'text l)) " "))) l))
-(define (weed l)
-  (filter identity l))
 (define space
   char-set:whitespace)
 (define -space
@@ -26,23 +27,19 @@
   (in char-set:digit))
 (define (as-number c)
   (bind (as-string c)
-        (lambda (x)
-          (result (string->number x)))))
+        (o result string->number)))
 (define (digits n)
   (as-number (repeated digit n)))
 (define dash
   (char-seq "-"))
 (define (date k)
-  (sequence* ((y (digits 4)) (_ dash) (m (digits 2)) (_ dash) (d (digits 2)))
-             (result (cons k (list y m d)))))
+  (mark-with (sequence* ((y (digits 4)) (_ dash) (m (digits 2)) (_ dash) (d (digits 2)))
+                        (result (list y m d)))
+             k))
 (define completed
-  (bind (char-seq "x ")
-        (lambda (x)
-          (when x
-            (result (cons 'done #t))))))
+  (mark-with (char-seq "x ") 'done))
 (define (mark-whitespace p)
-  (bind p
-        (lambda (x) (result (cons 'whitespace x)))))
+  (mark-with p 'whitespace))
 (define inbox
   (char-seq "* "))
 (define whitespace
@@ -57,8 +54,8 @@
 (define priority
   (enclosed-by (is #\() priority-char (char-seq ") ")))
 (define (denoted-by k p)
-  (bind (preceded-by p legal-text)
-             (lambda (v) (result (cons k v)))))
+  (mark-with (preceded-by p legal-text)
+             k))
 (define context
   (denoted-by 'context (is #\@)))
 (define project
@@ -69,9 +66,8 @@
   (sequence* ((k property-text) (_ (char-seq ":")) (v legal-text))
              (result (cons 'property (cons k v)))))
 (define text
-  (bind (none-of* property context project legal-text)
-        (lambda (x)
-          (result (cons 'text x)))))
+  (mark-with (none-of* property context project legal-text)
+             'text))
 (define generic-section
   (any-of property context project text))
 (define todo
@@ -83,20 +79,22 @@
                    (d (if (not d) d (weed d)))]
                (result (update-task (new-task)
                             inbox: inbox
-                            done: (assoc-or-f 'done d)
-                            completed-date: (assoc-or-f 'completed d)
+                            done: (assoc-or 'done d)
+                            completed-date: (assoc-or 'completed d)
                             priority: p
                             date: (if start-date (cdr start-date) #f)
-                            text: (assoc-or-f 'text t*)
-                            project: (assoc-or 'project t* '())
-                            context: (assoc-or 'context t* '())
-                            property: (assoc-or 'property t* '()))))))
+                            text: (assoc-or 'text t*)
+                            project: (assoc-or 'project t* default: '())
+                            context: (assoc-or 'context t* default: '())
+                            property: (assoc-or 'property t* default: '()))))))
 (define (date->str date)
   (fmt #f (pad-char #\0 (num (car date)) "-" (pad/left 2 (num (cadr date))) "-" (pad/left 2 (num (caddr date))))))
 (define (time->days time)
   (/ (time->seconds time) 86400))
 (define (tdate->date date-obj)
-  (make-date 0 0 0 0 (caddr date-obj) (cadr date-obj) (car date-obj)))
+  (if date-obj
+      (make-date 0 0 0 0 (caddr date-obj) (cadr date-obj) (car date-obj))
+      #f))
 (define (date->datestr date-obj)
   (format-date "~Y-~m-~d" date-obj))
 
@@ -112,13 +110,15 @@
   (let [(task-date (tdate->date (cdr (parse (date 'date)
                                             (assoc-v "due" (task-property task))))))
         (today (current-date))]
-    (update-task task
-                 property: (cons (cons "due" (date->datestr
-                                              (date-add-duration (if (date>? today task-date)
-                                                                     today
-                                                                     task-date)
-                                                                 (make-duration days: days))))
-                                 (rm-prop "due" (task-property task))))))
+    (if task-date
+        (update-task task
+                     property: (cons (cons "due" (date->datestr
+                                                  (date-add-duration (if (date>? today task-date)
+                                                                         today
+                                                                         task-date)
+                                                                     (make-duration days: days))))
+                                     (rm-prop "due" (task-property task))))
+        task)))
 (define (task-priority<? a b)
   (cond
    ((and (task-priority a) (task-priority b)) (char<=? (task-priority a) (task-priority b)))
@@ -139,11 +139,12 @@
                                  (if (task-completed-date task) (date->str (task-completed-date task)) #f)
                                  (if (task-date task) (date->str (task-date task)) #f)
                                  (task-text task)
-                                 (map (lambda (x) (string-concatenate (list "+" x)))
+                                 (map (o string-concatenate (cut list "+" <>))
                                       (sort (task-project task) string<?))
-                                 (map (lambda (x) (string-concatenate (list "@" x)))
+                                 (map (o string-concatenate (cut list "@" <>))
                                       (sort (task-context task) string<?))
-                                 (map (lambda (x) (format #f "~a:~a" (car x) (cdr x))) (task-property task))))) " "))
+                                 (map (lambda (x) (format #f "~a:~a" (car x) (cdr x)))
+                                      (task-property task))))) " "))
 (define (parse-filename file)
   (let loop ((lines (filter (lambda (x) (any (complement (cut char-set-contains? char-set:whitespace <>))
                                                (string->list x)))
