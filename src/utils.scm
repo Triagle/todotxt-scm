@@ -15,17 +15,5 @@
     (if kv
         (cdr kv)
         '())))
-(define (merge-alist l)
-  (let loop [(acc '()) (l l)]
-    (if (null-list? l)
-        acc
-        (let* [(h (car l))
-               (k (car h))
-               (v (cdr h))]
-          (loop (cons (cons k (append (list v) (assoc-v k acc))) acc) (cdr l))))))
-(define (assoc-or k l #!key (default #f))
-  (if (and l (assoc k l))
-      (assoc-v k l)
-      default))
 (define (weed l)
   (filter identity l))

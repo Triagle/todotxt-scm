@@ -190,7 +190,7 @@
        (("pri") (id new-priority)
         (let ((id (car action-args))
               (new-priority (cadr action-args)))
-              (if (or (equal? new-priority "-") (parse priority (format #f "(~a) " new-priority)))
+              (if (or (equal? new-priority "-") (irregex-match "[A-Z]" (format #f "~a" new-priority)))
                   (overwrite-file todo-file (format-tasks-as-file (with-task-at-id tasks (string->number id)
                                                                                    (cut update-task <> priority: (if (equal? (caddr args) "-")
                                                                                                                      #f
