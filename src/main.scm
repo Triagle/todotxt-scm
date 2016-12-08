@@ -74,7 +74,9 @@
          (action-args (cdr args)))
     (define-cli-interface args
       ((("list" "ls" "listall") ()
-        (let ((task-count (length tasks))
+        (let ((task-count (+ (length tasks) (if (equal? action "listall")
+                                                (length done-tasks)
+                                                0)))
               (tasks (sort (filter (standard-task-filter (string-join action-args " ") (equal? action "listall"))
                                    (append tasks done-tasks)) task-priority<?)))
           (print-tasks tasks)
