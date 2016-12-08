@@ -44,8 +44,7 @@
           [#t (format #t "Usage: todo ~a ~a~%"
                       (string-join '(argument-strings* ...) "/")
                       (string-join
-                       (map (lambda (cur)
-                              (format #f "[~a]" cur)) '(argument-names* ...)) " "))])
+                       (map (cut format #f "[~a]" <>) '(argument-names* ...)) " "))])
          (define-cli-interface args (actions* ...))))
 
 

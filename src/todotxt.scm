@@ -33,10 +33,10 @@
              (result (list y m d))))
 (define completed
   (bind (char-seq "x ")
-        (lambda (_) (result (lambda (t) (update-task t done: #t))))))
+        (lambda (_) (result (cut update-task <> done: #t)))))
 (define inbox
   (bind (char-seq "* ")
-        (lambda (_) (result (lambda (t) (update-task t inbox: #t))))))
+        (lambda (_) (result (cut update-task <> inbox: #t)))))
 (define whitespace
   (as-string (one-or-more (in space))))
 (define non-mandatory-whitespace
@@ -44,14 +44,11 @@
 (define done
   (sequence completed  (maybe (bind date
                                     (lambda (date)
-                                      (result (lambda (t) (update-task t
-                                                                       completed-date: date))))))))
+                                      (result (cut update-task <> completed-date: date)))))))
 (define priority-char
   (bind (char-seq-match "[A-Z]")
         (lambda (str)
-          (result (lambda (t)
-                    (update-task t
-                                 priority: (car (string->list str))))))))
+          (result (cut update-task <> priority: (car (string->list str)))))))
 (define priority
   (enclosed-by (is #\() priority-char (char-seq ") ")))
 (define (denoted-by p)
@@ -60,8 +57,7 @@
   (bind (denoted-by (is #\@))
         (lambda (context)
           (result (lambda (t)
-                    (update-task t
-                     context: (cons context (task-context t))))))))
+                    (update-task t context: (cons context (task-context t))))))))
 (define project
   (bind (denoted-by (is #\+))
         (lambda (project)
@@ -94,8 +90,7 @@
                                              (_ whitespace))
                                                   (result d))
                                        (lambda (date)
-                                         (result (lambda (t) (update-task t
-                                                              date: date)))))))
+                                         (result (cut update-task <> date: date))))))
               (t* (repeated todo until: end-of-input)))
              (let [(fns (weed (flatten (list inbox d p start-date t*))))]
                (result (foldr (cut <> <>) (new-task) fns)))))
