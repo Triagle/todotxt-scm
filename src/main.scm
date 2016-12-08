@@ -186,6 +186,8 @@
           (overwrite-file todo-file (format-tasks-as-file (with-tasks-at-ids tasks ids
                                                                            (lambda (t)
                                                                              (update-task t project: (cons project (task-project t)))))))))
+       (("log") ()
+        (write-to-a-file done-file (string-append "x " (string-join action-args " "))))
        (("pri") (id new-priority)
         (let ((id (car action-args))
               (new-priority (cadr action-args)))
