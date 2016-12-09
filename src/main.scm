@@ -63,9 +63,12 @@
          (if (zero? (string-length filter-args))
              (not (task-inbox x))
              (irregex-match  (irregex (string-concatenate (list ".*" (irregex-quote filter-args) ".*"))) (task->string x))))))
+(define (get-applicable-todo-directory . fallback-dirs)
+  (let [(directories (cons "./" fallback-dirs))]
+    (find (o file-exists? (cut string-append <> "todo.txt")) directories)))
 (define (run args)
   (let* ((action (or (= (length args) 0) (car args)))
-         (todo-dir (or (get-environment-variable "TODO_DIR") "./"))
+         (todo-dir (get-applicable-todo-directory (get-environment-variable "TODO_DIR")))
          (todo-file (string-append todo-dir "todo.txt"))
          (tasks (parse-filename todo-file))
          (done-file (string-append todo-dir "done.txt"))
