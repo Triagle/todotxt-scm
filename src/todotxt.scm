@@ -113,6 +113,12 @@
            (date (tdate->date date))]
        (or (date>=? now date) (< (abs (time->days (date-difference now date))) 3)))
      #f)))
+(define (date-cmp-now date-str)
+  (let [(date (parse date date-str))]
+    (if date
+        (let [(now (current-date))
+              (date (tdate->date date))]
+          (time->days (date-difference now date))))))
 (define (task-due-add task days)
   (let [(task-date (tdate->date (cdr (parse date
                                             (assoc-v "due" (task-property task))))))

@@ -1,8 +1,14 @@
 ;; Main CLI interface
 (declare (uses todotxt todotxt-utils))
-(require-extension fmt fmt-unicode comparse irregex fmt-color)
-(use fmt fmt-color fmt-unicode irregex utils comparse)
+(require-extension fmt fmt-unicode comparse irregex fmt-color numbers)
+(use fmt fmt-color fmt-unicode irregex utils comparse numbers)
 
+(define (colour-days-out date-str)
+  (let [(days-from-now (date-cmp-now date-str))]
+    (cond
+     [(>= days-from-now 0) fmt-red]
+     [(< days-from-now -2) fmt-blue]
+     [#t fmt-white])))
 (define (as-ids arg)
   (map string->number (string-split arg ",")))
 (define (join-structs structs accessing-function joiner)
@@ -33,7 +39,7 @@
                                                                                     (string-join (map (lambda (addon)
                                                                                                         (fmt #f
                                                                                                              ((if (and (equal? (car addon) "due") (date-soon (cdr addon)))
-                                                                                                                  (o dsp fmt-bold fmt-red)
+                                                                                                                  (o dsp fmt-bold (colour-days-out (cdr addon)))
                                                                                                                   dsp) (car addon)) (dsp ":") (dsp (cdr addon)))) (task-property x)) ", "))
                                                                             "\n")))) " |"))))
 (define-syntax define-cli-interface
