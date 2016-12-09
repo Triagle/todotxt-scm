@@ -12,6 +12,9 @@
     (cond
      ((equal? priority #\A) (fmt #f (fmt-bold priority)))
      (#t priority))))
+(define (edit file)
+  (let [(editor (or (get-environment-variable "EDITOR") "vi"))]
+    (system (string-append editor " " file))))
 (define (print-tasks tasks)
 (fmt #t (fmt-unicode
                    (tabular
@@ -94,8 +97,7 @@
               (print (task->string (car tasks)))
               (print "No tasks to do next."))))
        (("edit") ()
-        (let [(editor (or (get-environment-variable "EDITOR") "vi"))]
-          (system (string-append editor " " todo-file))))
+        (edit (string-append editor " " todo-file)))
        (("inbox" "in") ()
         (let [(tasks (filter task-inbox tasks))]
           (print-tasks tasks)))
@@ -150,6 +152,20 @@
                                                                                           property: (rm-prop key (task-property t)))))))))
        (("add" "a") ()
         (write-to-a-file todo-file (string-join action-args " ")))
+       (("open" "o") (id)
+        (let* [(id (string->number (car action-args)))
+               (selected-task (find (lambda (t) (equal? id (task-id t))) tasks))
+               (attachments (string-split (assoc-v "attach" (task-property selected-task)) ","))]
+          (cond
+           [(null-list? attachments) (fmt #t "No attachments found for the selected task." nl)]
+           [(= (length attachments) 1) (edit (car attachments))]
+           [#t (let [(attachment-pair (zip (map (cut + 1 <>) (iota (length attachments))) attachments))]
+                 (fmt #t (fmt-join (lambda (attachment)
+                                     (dsp (string-append (->string (car attachment)) ". " (cadr attachment)))) attachment-pair "\n")
+                      nl
+                      "Select attachment [1-" (length attachments) "]: ")
+                 (let [(in (string->number (read-line)))]
+                   (edit (cadr (find (lambda (attachment) (equal? (car attachment) in)) attachment-pair)))))])))
        (("done" "do" "mark" "complete" "tick") (ids)
         (let ((ids (as-ids (car action-args))))
           (write-to-a-file done-file (format-tasks-as-file
