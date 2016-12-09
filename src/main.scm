@@ -181,6 +181,12 @@
           (overwrite-file todo-file (format-tasks-as-file (with-tasks-at-ids tasks ids
                                                                            (lambda (t)
                                                                              (update-task t context: (cons context (task-context t)))))))))
+       (("rm-context" "rc") (ids context)
+        (let ((ids (as-ids (car action-args)))
+              (context (cadr action-args)))
+          (overwrite-file todo-file (format-tasks-as-file (with-tasks-at-ids tasks ids
+                                                                             (lambda (t)
+                                                                               (update-task t context: (remove (cut equal? context <>) (task-context t)))))))))
 
        (("add-project" "ap") (ids project)
         (let ((ids (as-ids (car action-args)))
@@ -188,6 +194,12 @@
           (overwrite-file todo-file (format-tasks-as-file (with-tasks-at-ids tasks ids
                                                                            (lambda (t)
                                                                              (update-task t project: (cons project (task-project t)))))))))
+       (("rm-project" "rp") (ids project)
+        (let ((ids (as-ids (car action-args)))
+              (project (cadr action-args)))
+          (overwrite-file todo-file (format-tasks-as-file (with-tasks-at-ids tasks ids
+                                                                             (lambda (t)
+                                                                               (update-task t project: (remove (cut equal? project <>) (task-project t)))))))))
        (("log") ()
         (write-to-a-file done-file (string-append "x " (string-join action-args " "))))
        (("pri") (id new-priority)
