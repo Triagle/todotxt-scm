@@ -93,6 +93,9 @@
           (if tasks
               (print (task->string (car tasks)))
               (print "No tasks to do next."))))
+       (("edit") ()
+        (let [(editor (or (get-environment-variable "EDITOR") "vi"))]
+          (system (string-append editor " " todo-file))))
        (("inbox" "in") ()
         (let [(tasks (filter task-inbox tasks))]
           (print-tasks tasks)))
