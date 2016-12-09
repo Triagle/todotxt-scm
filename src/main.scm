@@ -9,6 +9,8 @@
      [(>= days-from-now 0) fmt-red]
      [(< days-from-now -2) fmt-blue]
      [#t fmt-white])))
+(define (open file)
+  (system (string-append "xdg-open" " " file)))
 (define (as-ids arg)
   (map string->number (string-split arg ",")))
 (define (join-structs structs accessing-function joiner)
@@ -171,7 +173,7 @@
                       nl
                       "Select attachment [1-" (length attachments) "]: ")
                  (let [(in (string->number (read-line)))]
-                   (edit (cadr (find (lambda (attachment) (equal? (car attachment) in)) attachment-pair)))))])))
+                   (open (cadr (find (lambda (attachment) (equal? (car attachment) in)) attachment-pair)))))])))
        (("done" "do" "mark" "complete" "tick") (ids)
         (let ((ids (as-ids (car action-args))))
           (write-to-a-file done-file (format-tasks-as-file
