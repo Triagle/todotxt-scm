@@ -54,7 +54,7 @@
   ;; Everything else -> unchanged
   (let ((priority (task-priority task)))
     (cond
-     ((equal? priority #\A) (fmt #f (fmt-bold priority)))
+     ((equal? priority #\A) (fmt-bold priority))
      (#t priority))))
 (define (edit file)
   ;; Open the file in an appropriate editor. By default this is vi (for compatibility reasons), but the value of $EDITOR if set
