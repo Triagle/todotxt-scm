@@ -6,7 +6,7 @@
   ;; Print a list of the result of display-fn on every item in list
   (fmt #t (fmt-unicode (fmt-join (o dsp display-fn) list "\n") nl)))
 (define (cycle-priority task movement default-character)
-  ;; Update a tasks priority, keeping it as is if it is the default-character, or increasing it by the amount indicated by movement
+  ;; Update a task's priority, keeping it as is if it is the default-character, or changing it to the result of applying movement
   (update-task task priority: (cond
                                ((equal? (task-priority task) default-character) default-character) ;; If the current priority is the default character, keep as is
                                ((not (task-priority task)) default-character) ;; If the task does not have a priority, add it
@@ -22,7 +22,7 @@
    (symbol->keyword property)
    (remove (cut equal? value <>) (property-fn task))))
 (define (list-unique-properties tasks property-fn)
-  ;; Return a list where each item is a distinct (unique) result of applying property-fn on tasks
+  ;; Return a list where each item is a distinct (unique) result of applying property-fn on all tasks
   (delete-duplicates (flatten (map property-fn tasks))))
 (define (colour-days-out date-str)
   ;; Return a colour function that indicates to the user how far away a due date is
@@ -57,7 +57,7 @@
      ((equal? priority #\A) (fmt-bold priority))
      (#t priority))))
 (define (edit file)
-  ;; Open the file in an appropriate editor. By default this is vi (for compatibility reasons), but the value of $EDITOR if set
+  ;; Open the file in an appropriate editor. By default this is vi (for compatibility reasons), but can be the value of $EDITOR if set
   (let [(editor (or (get-environment-variable "EDITOR") "vi"))]
     (system (string-append editor " " file))))
 (define (column title formatter tasks)
@@ -86,7 +86,7 @@
                                  (task-text task))) tasks)
             " | "
             ;; Join the projects by ',' (e.g "todo.txt,programming").
-            ;; Allow the todo.txt gtd mantra frowns upon multiple projects, it can be very useful for delimiting sub projects.
+            ;; Although the todo.txt gtd mantra frowns upon multiple projects, it can be very useful for delimiting sub projects.
             (column "Projects"
                     (lambda (task) (fmt-join dsp (task-project task) ", ")) tasks)
             " | "
