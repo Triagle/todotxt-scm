@@ -23,87 +23,159 @@
   ;; Return a list where each item is a distinct (unique) result of applying property-fn on tasks
   (delete-duplicates (flatten (map property-fn tasks))))
 (define (colour-days-out date-str)
-  (let [(days-from-now (date-cmp-now date-str))]
+  ;; Return a colour function that indicates to the user how far away a due date is
+  ;; The due date is in string form initially (date-str), however this is parsed internally by date-cmp-now
+  (let [(days-from-now (date-cmp-now date-str))] ;; date-cmp-now gets the number of days from now the due date is
+    ;; date-cmp-now has one of three possible valid return values
+    ;; - A positive number, i.e the date is earlier than now
+    ;; - A negative number, i.e the date is later than now
+    ;; - 0, i.e the same dates
+    ;; The exact number of days is mapped to red, blue and white.
     (cond
+     ;; The task is overdue!!
      [(>= days-from-now 0) fmt-red]
+     ;; The task is < 2 days out. I like to be warned that a task is impending, so that I can prioritize it.
      [(< days-from-now -2) fmt-blue]
+     ;; The task has a due date, but it is too far out to be of much significance.
      [#t fmt-white])))
 (define (open file)
+  ;; Open file using xdg-open.
   (system (string-append "xdg-open" " " file)))
 (define (as-ids arg)
+  ;; Map a list of comma delimited ids to numbers
+  ;; e.g "1,2,3" -> '(1 2 3)
   (map string->number (string-split arg ",")))
-(define (join-structs structs accessing-function joiner)
-  (string-join (map ->string (filter identity (map accessing-function structs))) joiner))
 (define (colour-priority task)
+  ;; Colour a task's priority based on it's importance
+  ;; The priorities are mapped as follows:
+  ;; A -> bolded text
+  ;; Everything else -> unchanged
   (let ((priority (task-priority task)))
     (cond
      ((equal? priority #\A) (fmt #f (fmt-bold priority)))
      (#t priority))))
 (define (edit file)
+  ;; Open the file in an appropriate editor. By default this is vi (for compatibility reasons), but the value of $EDITOR if set
   (let [(editor (or (get-environment-variable "EDITOR") "vi"))]
     (system (string-append editor " " file))))
+(define (column title formatter tasks)
+  ;; Return a "column" (a series of newline separated values for the fmt function to turn into table columns) from a list of tasks and a formatter
+  ;; E.g (column "hello" identity '("a" "b" "c")) -> "hello\na\nb\nc"
+  (cat title "\n" (fmt-join (lambda (x)
+                              ;; Either take the value of the formatter on item x, or if that returns #f an empty string ""
+                              (dsp (or (formatter x) ""))) tasks "\n")))
 (define (print-tasks tasks)
-(fmt #t (fmt-unicode
-                   (tabular
-                    "| " (dsp (string-concatenate (list "ID\n" (join-structs tasks (lambda (x) (if (task-done x)
-                                                                                                   "x"
-                                                                                                   (fmt #f (num (task-id x))))) "\n")))) " | "
-                    (dsp (string-concatenate (list "Priority\n" (join-structs tasks colour-priority "\n")))) " | "
-                    (dsp (string-concatenate (list "Task\n" (join-structs tasks (lambda (task)
-                                                                                  (if (task-done task)
-                                                                                      (fmt #f (fmt-unicode (fmt-green (dsp (task-text task)))))
-                                                                                      (task-text task))) "\n")))) " | "
-
-                    (dsp (string-concatenate (list "Projects\n" (join-structs tasks (lambda (x) (string-join (task-project x) ", ")) "\n")))) " | "
-                    (dsp (string-concatenate (list "Contexts\n" (join-structs tasks (lambda (x) (string-join (task-context x) ", ")) "\n")))) " | "
-                    (dsp (string-concatenate (list "Addons\n" (join-structs tasks (lambda (x)
-                                                                                    (string-join (map (lambda (addon)
-                                                                                                        (fmt #f
-                                                                                                             ((if (and (equal? (car addon) "due") (date-soon (cdr addon)))
-                                                                                                                  (o dsp fmt-bold (colour-days-out (cdr addon)))
-                                                                                                                  dsp) (car addon)) (dsp ":") (dsp (cdr addon)))) (task-property x)) ", "))
-                                                                            "\n")))) " |"))))
+  ;; Print tasks in table form, with each column growing as required
+  (fmt #t (fmt-unicode
+           (tabular
+            "| "
+            ;; ID column consists of either the task id (e.g 1) or an 'x' if that task is done
+            (column "ID" (lambda (x) (if (task-done x)
+                                         "x"
+                                         (num (task-id x)))) tasks)
+            " | "
+            ;; See colour-priority for how this is formatted
+            (column "Priority" colour-priority tasks)
+            " | "
+            ;; If the task is done, the task text is formatted in green, and is otherwise normal text
+            (column "Task" (lambda (task)
+                             (if (task-done task)
+                                 (fmt-unicode (fmt-green (dsp (task-text task))))
+                                 (task-text task))) tasks)
+            " | "
+            ;; Join the projects by ',' (e.g "todo.txt,programming").
+            ;; Allow the todo.txt gtd mantra frowns upon multiple projects, it can be very useful for delimiting sub projects.
+            (column "Projects"
+                    (lambda (task) (fmt-join dsp (task-project task) ", ")) tasks)
+            " | "
+            ;; Join the contexts of a task by ',' (e.g home,computer,mall)
+            (column "Contexts" (lambda (task) (fmt-join dsp (task-context task) ", ")) tasks)
+            " | "
+            ;; Join the properties/addons in the format "key:value,key1:value1"
+            ;; The "due" property is treated separately in that it is highlighted depending on the urgency of the due date.
+            (column "Addons" (lambda (task)
+                               (fmt-join dsp (map (lambda (addon)
+                                                    (cat ((if (and (equal? (car addon) "due") (date-soon (cdr addon)))
+                                                              ;; If the property is "due" and the due date is due soon, colour it.
+                                                              (o fmt-bold (colour-days-out (cdr addon)))
+                                                              ;; Otherwise leave as is
+                                                              identity) (car addon)) ":" (cdr addon))) (task-property task)) ", ")) tasks) " |"))))
 (define-syntax define-cli-interface
+  ;; Simple little macro that defines the style of command line interface
+  ;; The syntax is simple
+
+  ;; (define-cli-interface <passed-command-line-arguments>
+  ;;     ((("list") () (print "listing"))))
+  ;; Every subcommand (todo "ls", todo "add", etc) has three parts
+  ;; The action-strings: ("list"). These are the aliases for the subcommand
+  ;; The argument-names: (). A simple list of the names of the arguments (an empty list meaning any number of arguments is accepted).
+  ;; The body: (print "listing"). The body of the subcommand.
   (syntax-rules ()
-    ((_ args (actions* ...) (extension* ...))
-     (define-cli-interface args (actions* ... extension* ...)))
-    ((_ args (((argument-strings* ...) (argument-names* ...) . body)  actions* ...))
-     (if (and (>= (length args) 1) (or (equal? (car args) '(argument-strings* ...)) (member (car args) '(argument-strings* ...))))
+    ((_ args (((action-strings* ...) (argument-names* ...) . body)  actions* ...))
+     ;; If the first user passed cli argument is within the argument-strings
+     (if (member (car args) '(action-strings* ...))
          (cond
-          [(>= (length (cdr args)) (length '(argument-names* ...))) (begin . body)]
-          [#t (format #t "Usage: todo ~a ~a~%"
-                      (string-join '(argument-strings* ...) "/")
-                      (string-join
-                       (map (cut format #f "[~a]" <>) '(argument-names* ...)) " "))])
+          ;; If the length of the args is greater than or equal to the length of required subcommand arguments
+          [(>= (length (cdr args)) (length '(argument-names* ...)))
+           ;; Execute the subcommand
+           (begin . body)]
+          [#t
+           ;; Otherwise print the generated usage string for this subcommand
+           (fmt #t "Usage: todo "
+                   ;; Present the possible aliases of a given action separated by '/' (e.g "pri/new-priority")
+                (fmt-join dsp '(action-strings* ...) "/")
+                " "
+                ;; Present the arguments to the subcommand (e.g "[id] [new-priority]")
+                (fmt-join dsp (map (o (cut cat "[" <> "]")) '(argument-names* ...)) " ")
+                nl)])
          (define-cli-interface args (actions* ...))))
-
-
-    ((_ args ())
-     (format #t "Usage: todo [action-name] [action-args]~%"))))
+    ;; Base case, if the user has specified an action that is unknown
+    ((_ args ()) (fmt #t (fmt-unicode (fmt-red (fmt-bold "Unrecognized action: ")) (car args) "." nl)))))
 (define (with-task-at-id tasks id thunk)
-  (map (lambda (task) (if (= (task-id task) id)
+  ;; Map over tasks, applying thunk to the task whose id matches the one selected.
+  (map (lambda (task) (if (= (task-id task) id) ;; If task id matches
                           (thunk task)
                           task)) tasks))
 (define (with-tasks-at-ids tasks ids thunk)
+  ;; Same as tasks-at-ids, but works with multiple ids
   (foldr (lambda (id tasks) (with-task-at-id tasks id thunk)) tasks ids))
 (define (standard-task-filter filter-args show-all?)
+  ;; Returns a function that can be passed to filter
+  ;; It by default filters out inbox items, as well as done items
+  ;; The show-all? boolean can be used to control whether done items are shown as well
+  ;; filter-args is a string that is fuzzy matched within the string representation of a task with irregex
   (lambda (x)
+    ;; Only keep tasks that:
+    ;; Aren't inbox items
+    ;; Aren't done (unless show-all? permits done items to be included)
+    ;; Match the fuzzy regex (.*filter.*) on the string representation of the task
+    ;; String representation is like "(A) task @context +project key:value", or as shown in the todo.txt file
     (and (not (task-inbox x))
          (or show-all? (not (task-done x)) )
-         (if (zero? (string-length filter-args))
-             (not (task-inbox x))
+         (or (zero? (string-length filter-args))
+             ;; Fuzzy match
              (irregex-match  (irregex (string-concatenate (list ".*" (irregex-quote filter-args) ".*"))) (task->string x))))))
 (define (get-applicable-todo-directory . fallback-dirs)
+  ;; Return the first directory in the list (if any) that has a todo.txt file.
+  ;; The list always contains the current directory, with the supplied arguments being fallbacks.
   (let [(directories (cons "./" fallback-dirs))]
     (find (o file-exists? (cut string-append <> "todo.txt")) directories)))
 (define (run args)
-  (let* ((action (or (= (length args) 0) (car args)))
+  ;; args is a list of strings contained the arguments passed to the executable
+  ;; e.g '("pri" "2" "A")
+  (let* (;; The first item in the list of arguments is always the action
+         (action (or (= (length args) 0) (car args)))
+         ;; Get an applicable todo directory to source the todo.txt and done.txt file from
          (todo-dir (get-applicable-todo-directory (get-environment-variable "TODO_DIR")))
+         ;; Path representation of the todo.txt file
          (todo-file (string-append todo-dir "todo.txt"))
+         ;; The parsed todo.txt file
          (tasks (parse-filename todo-file))
+         ;; Path representation of the done.txt file
          (done-file (string-append todo-dir "done.txt"))
+         ;; The parsed done.txt file
          (done-tasks (parse-filename done-file))
-         (report (string-append todo-dir "report.txt"))
+         ;; The tail (or cdr) of the arguments is always the arguments of a given action
          (action-args (cdr args)))
     (define-cli-interface args
       ((("list" "ls" "listall") ()
