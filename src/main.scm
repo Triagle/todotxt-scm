@@ -18,9 +18,9 @@
                (cons value (property-fn task))))
 (define (remove-from-todo task property property-fn value)
   ;; Remove a value from a list which is the property of task, using property-fn to retrieve it's original value
-  (update-task
+  (update-task task
    (symbol->keyword property)
-   (remove (cut equal? value <>) (property-fn t))))
+   (remove (cut equal? value <>) (property-fn task))))
 (define (list-unique-properties tasks property-fn)
   ;; Return a list where each item is a distinct (unique) result of applying property-fn on tasks
   (delete-duplicates (flatten (map property-fn tasks))))
