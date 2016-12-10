@@ -12,10 +12,12 @@
                                ((not (task-priority task)) default-character) ;; If the task does not have a priority, add it
                                (#t (integer->char (movement (char->integer (task-priority task)) 1)))))) ;; Otherwise manipulate the current priority with the movement function
 (define (add-to-todo task property property-fn value)
+  ;; Add value to the beginning of a list which is the property of task, using property-fn to retrieve it's original value
   (update-task task
                (symbol->keyword property)
                (cons value (property-fn task))))
 (define (remove-from-todo task property property-fn value)
+  ;; Remove a value from a list which is the property of task, using property-fn to retrieve it's original value
   (update-task
    (symbol->keyword property)
    (remove (cut equal? value <>) (property-fn t))))
@@ -315,7 +317,7 @@
        (("bump" "promote") (ids)
         (let ((ids (as-ids (car action-args))))
           ;; Cycle the priority of the tasks upwards with ids in ids, giving them a priority of A if they don't already have one
-          (overwrite-file todo-file (format-tasks-as-file (with-tasks-at-ids tasks ids (cut cycle-priority <> + #\A))))))
+          (overwrite-file todo-file (format-tasks-as-file (with-tasks-at-ids tasks ids (cut cycle-priority <> - #\A))))))
 
        (("curb" "demote") (ids)
         (let ((ids (as-ids (car action-args))))
