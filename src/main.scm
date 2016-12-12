@@ -226,7 +226,7 @@
             ;; Overwrite the existing todo file, where the task at id is changed such that it no longer has an inbox status
             (let [(id (string->number (car action-args)))]
               (if id
-                  (overwrite-file todo-file (format-tasks-as-file (with-task-at-id tasks (string->number (car action-args))
+                  (overwrite-file todo-file (format-tasks-as-file (with-task-at-id tasks id
                                                                                    (cut update-task <> inbox: #f))))
                   (invalid-id-err (car action-args)))))
            (("listproj" "lsprj") ()
@@ -255,7 +255,7 @@
                                                   (format-tasks-as-file
                                                    ;; remove the original todo first.
                                                    (remove (lambda (task)
-                                                             (= (task-id task) (string->number id))) tasks)))
+                                                             (= (task-id task) id)) tasks)))
                                                  ;; Append to the end of the file.
                                                  (string-join todo " ")
                                                  nl))
@@ -401,7 +401,7 @@
                   (if (or (equal? new-priority "-") (irregex-match "[A-Z]" (format #f "~a" new-priority)))
                       ;; Update the priority of the todo item
                       ;; New priority can either be an uppercase character, or "-" which resets the priority.
-                      (overwrite-file todo-file (format-tasks-as-file (with-task-at-id tasks (string->number id)
+                      (overwrite-file todo-file (format-tasks-as-file (with-task-at-id tasks id
                                                                                        (cut update-task <> priority: (if (equal? new-priority "-")
                                                                                                                          #f ;; false equates to no priority internally
                                                                                                                          new-priority)))))
