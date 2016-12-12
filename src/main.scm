@@ -44,8 +44,11 @@
   ;; Open file using xdg-open.
   (system (string-append "xdg-open" " " file)))
 (define (err summary body)
+  ;; Print a standard error message
+  ;; The summary of this message is bolded and red, separated from the standard body text by a colon
   (fmt #t (fmt-bold (fmt-red summary)) ": " body nl))
 (define (invalid-id-err id)
+  ;; Specialized err function for invalid ids specifically
   (err "Invalid id" id))
 (define (valid-ids ids)
   ;; Check that a list of parsed ids is valid
