@@ -1,7 +1,7 @@
 (declare (unit todotxt))
 (declare (uses todotxt-utils))
-(require-extension defstruct comparse srfi-19-date srfi-19-time fmt numbers srfi-19-io)
-(use comparse defstruct utils srfi-14 srfi-19-date srfi-19-time fmt numbers srfi-19-io)
+(require-extension defstruct comparse srfi-19-date srfi-19-time fmt numbers srfi-19-io srfi-19-support)
+(use comparse defstruct utils srfi-14 srfi-19-date srfi-19-time fmt numbers srfi-19-io srfi-19-support)
 (defstruct task
   ;; (A) 2011-03-02 Call Mum +family @phone
   ;; x Do this really important thing
@@ -28,9 +28,10 @@
   (as-number (repeated digit n)))
 (define dash
   (char-seq "-"))
+
 (define date
   (sequence* ((y (digits 4)) (_ dash) (m (digits 2)) (_ dash) (d (digits 2)))
-             (result (list y m d))))
+             (result (make-date 0 0 0 0 d m y))))
 (define completed
   (bind (char-seq "x ")
         (lambda (_) (result (cut update-task <> done: #t)))))
@@ -65,9 +66,20 @@
                     (update-task t
                       project: (cons project (task-project t))))))))
 (define property-text
-  (as-string (repeated (in (char-set-difference char-set:graphic (->char-set " :"))))))
+  (as-string (one-or-more (in (char-set-difference char-set:graphic (->char-set " :,"))))))
+(define property-value-literal
+  (any-of date (as-number (one-or-more digit) ) property-text))
+(define property-list
+  (bind (sequence (one-or-more (sequence* [(list-item property-value-literal) (_ (is #\,))]
+                                (result list-item))) property-value-literal)
+        (o result flatten)))
+(define property-value
+  (any-of property-list property-value-literal))
+(define (as-symbol parser)
+  (bind (as-string parser)
+        (o result string->symbol)))
 (define property
-  (sequence* ((k property-text) (_ (char-seq ":")) (v legal-text))
+  (sequence* ((k (as-symbol property-text)) (_ (char-seq ":")) (v property-value))
              (result (lambda (t) (update-task t
                                               property: (cons (cons k v) (task-property t)))))))
 (define text
@@ -87,7 +99,7 @@
               (_ (maybe whitespace))
               (p (maybe priority))
               (start-date (maybe (bind (sequence* ((d date)
-                                             (_ whitespace))
+                                                   (_ whitespace))
                                                   (result d))
                                        (lambda (date)
                                          (result (cut update-task <> date: date))))))
@@ -95,7 +107,7 @@
              (let [(fns (weed (flatten (list inbox d p start-date t*))))]
                (result (foldr (cut <> <>) (new-task) fns)))))
 (define (date->str date)
-  (fmt #f (pad-char #\0 (num (car date)) "-" (pad/left 2 (num (cadr date))) "-" (pad/left 2 (num (caddr date))))))
+  (format-date #f "~Y-~m-~d" date))
 (define (time->days time)
   (/ (time->seconds time) 86400))
 (define (tdate->date date-obj)
@@ -105,59 +117,55 @@
 (define (date->datestr date-obj)
   (format-date "~Y-~m-~d" date-obj))
 
-(define (date-soon date-str)
+(define (date-soon date)
   ;; Note that date at this point is a string
-  (let [(date (parse date date-str))]
-    (if date
-     (let [(now (current-date))
-           (date (tdate->date date))]
-       (or (date>=? now date) (< (abs (time->days (date-difference now date))) 3)))
-     #f)))
-(define (date-cmp-now date-str)
-  (let [(date (parse date date-str))]
-    (if date
-        (let [(now (current-date))
-              (date (tdate->date date))]
-          (time->days (date-difference now date))))))
+  (if date
+      (let [(now (current-date))]
+        (or (date>=? now date) (< (abs (time->days (date-difference now date))) 3)))
+      #f))
+(define (date-cmp-now date)
+  (if date
+      (let [(now (current-date))]
+        (time->days (date-difference now date)))))
 (define (task-due-add task days)
-  (let [(task-date (tdate->date (cdr (parse date
-                                            (assoc-v "due" (task-property task))))))
+  (let [(task-date (assoc-v 'due (task-property task)))
         (today (current-date))]
     (if task-date
         (update-task task
-                     property: (cons (cons "due" (date->datestr
+                     property: (cons (cons 'due (date->datestr
                                                   (date-add-duration (if (date>? today task-date)
                                                                          today
                                                                          task-date)
                                                                      (make-duration days: days))))
-                                     (rm-prop "due" (task-property task))))
+                                     (rm-prop 'due (task-property task))))
         task)))
 (define (task-priority<? a b)
   (cond
    ((and (task-priority a) (task-priority b)) (char<=? (task-priority a) (task-priority b)))
    ((not (task-priority a)) #f)
    ((not (task-priority b)) #t)))
+(define (property-value->string value)
+  (cond
+   [(list? value) (fmt-join (o dsp property-value->string) value ",")]
+   [(date? value) (date->str value)]
+   [#t (->string value)]))
 (define (task->string task)
-  (string-join (filter identity
-                       (flatten (list
-                                 (if (task-inbox task)
-                                     "*"
-                                     #f)
-                                 (if (task-done task)
-                                     "x"
-                                     #f)
-                                 (if (task-priority task)
-                                     (format "(~a)" (task-priority task))
-                                     #f)
-                                 (if (task-completed-date task) (date->str (task-completed-date task)) #f)
-                                 (if (task-date task) (date->str (task-date task)) #f)
-                                 (task-text task)
-                                 (map (o string-concatenate (cut list "+" <>))
-                                      (sort (task-project task) string<?))
-                                 (map (o string-concatenate (cut list "@" <>))
-                                      (sort (task-context task) string<?))
-                                 (map (lambda (x) (format #f "~a:~a" (car x) (cdr x)))
-                                      (task-property task))))) " "))
+  (fmt #f
+       (if (task-inbox task)
+           "* "
+           "")
+       (if (task-done task)
+           "x "
+           "")
+       (if (task-priority task)
+           (cat "(" (task-priority task) ") ")
+           "")
+       (if (task-completed-date task) (cat (date->str (task-completed-date task)) " ") "")
+       (if (task-date task) (cat (date->str (task-date task)) " ") "")
+       (task-text task)
+       (fmt-join (cut cat " +" <>) (sort (task-project task) string<?))
+       (fmt-join (cut cat " @" <>) (sort (task-context task) string<?))
+       (fmt-join (lambda (kv) (cat " " (symbol->string (car kv)) ":" (property-value->string (cdr kv)))) (task-property task))))
 (define (parse-filename file)
   (let loop ((lines (filter (lambda (x) (any (complement (cut char-set-contains? char-set:whitespace <>))
                                                (string->list x)))

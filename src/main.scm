@@ -97,11 +97,11 @@
             ;; The "due" property is treated separately in that it is highlighted depending on the urgency of the due date.
             (column "Addons" (lambda (task)
                                (fmt-join dsp (map (lambda (addon)
-                                                    (cat ((if (and (equal? (car addon) "due") (date-soon (cdr addon)))
+                                                    (cat ((if (and (equal? (car addon) 'due) (date-soon (cdr addon)))
                                                               ;; If the property is "due" and the due date is due soon, colour it.
                                                               (o fmt-bold (colour-days-out (cdr addon)))
                                                               ;; Otherwise leave as is
-                                                              identity) (car addon)) ":" (cdr addon))) (task-property task)) ", ")) tasks) " |"))))
+                                                              identity) (car addon)) ":" (property-value->string (cdr addon)))) (task-property task)) ", ")) tasks) " |"))))
 (define-syntax define-cli-interface
   ;; Simple little macro that defines the style of command line interface
   ;; The syntax is simple
@@ -242,7 +242,7 @@
                                          nl))))
        (("addon-modify" "admod" "am") (id key value)
         (let ((id (car action-args))
-              (key (cadr action-args))
+              (key (string->symbol (cadr action-args)))
               (value (caddr action-args)))
           ;; Modify (or add) an addon (property internally) of a todo.
           (overwrite-file todo-file (format-tasks-as-file (with-task-at-id tasks (string->number id)
@@ -252,7 +252,7 @@
                                                                                           property: (cons (cons key value) (rm-prop key (task-property t))))))))))
        (("addon-remove" "adrm" "ar") (id key)
         (let ((id (car action-args))
-              (key (cadr action-args)))
+              (key (string->symbol (cadr action-args))))
           ;; Remove an addon of a todo
           (overwrite-file todo-file (format-tasks-as-file (with-task-at-id tasks (string->number id)
                                                                            (lambda (t)
@@ -266,13 +266,15 @@
         (let* [(id (string->number (car action-args)))
                ;; Get selected task
                (selected-task (find (lambda (t) (equal? id (task-id t))) tasks))
-               ;; Split the "attach" property of the task by , (list separator).
-               (attachments (string-split (assoc-v "attach" (task-property selected-task)) ","))]
+               ;; The attachments are stored in the attach property of the task
+               (attachments (assoc-v 'attach (task-property selected-task)))]
           (cond
-           ;; Base case, no attachments, therefore just print that none were found.
-           [(null-list? attachments) (fmt #t "No attachments found for the selected task." nl)]
+           ;; Attachments is a garbage value, i.e not a list of strings or not a string
+           [(not (or (string? attachments) (and (list? attachments) (every string? attachments)))) (fmt #t (fmt-bold (fmt-red "Invalid attachment(s): ")) (property-value->string attachments) nl)]
            ;; If only one attachment, assume the user intends to open it and don't bug them
-           [(= (length attachments) 1) (edit (car attachments))]
+           [(string? attachments) (edit attachments)]
+           ;; No attachments, therefore just print that none were found.
+           [(null-list? attachments) (fmt #t "No attachments found for the selected task." nl)]
            [#t (let [(attachment-pair
                       ;; Pair the attachments with a number to represent them for user selection
                       ;; E.g A list '(file1.txt file2.txt) would become '((1 file1.txt) (2 file2.txt))
@@ -303,15 +305,15 @@
                                                 ;; That task is one of the selected tasks from the user
                                                 ;; That task also does not have a recur property.
                                                 (and (member (task-id task) ids)
-                                                     (not (assoc "recur" (task-property task))))) tasks)
+                                                     (not (assoc 'recur (task-property task))))) tasks)
                                       ids
-                                      (lambda (t)
+                                     (lambda (t)
                                         ;; If the task has a due date and a recur property
-                                        (if (and (assoc "recur" (task-property t)) (assoc "due" (task-property t)))
+                                        (if (and (assoc 'recur (task-property t)) (assoc 'due (task-property t)))
                                             ;; Add the value of the recur property to the due date of the task and return that new task
                                             (begin
                                               (fmt #t (fmt-unicode (fmt-bold "Task is recurrent, adding another in the future") nl) )
-                                              (task-due-add t (string->number (assoc-v "recur" (task-property t)))))
+                                              (task-due-add t (assoc-v 'recur (task-property t))))
                                             ;; Otherwise just return the same task untouched
                                             t)))))))
        (("bump" "promote") (ids)
