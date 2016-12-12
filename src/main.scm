@@ -1,7 +1,7 @@
 ;; Main CLI interface
 (declare (uses todotxt todotxt-utils))
-(require-extension fmt fmt-unicode comparse irregex fmt-color numbers symbol-utils)
-(use fmt fmt-color fmt-unicode irregex utils comparse numbers symbol-utils)
+(require-extension fmt fmt-unicode comparse irregex fmt-color numbers symbol-utils srfi-19-support)
+(use fmt fmt-color fmt-unicode irregex utils comparse numbers symbol-utils srfi-19-support)
 (define (print-application list display-fn join)
   ;; Print a list of the result of display-fn on every item in list
   (fmt #t (fmt-unicode (fmt-join (o dsp display-fn) list "\n") nl)))
@@ -104,7 +104,7 @@
             ;; The "due" property is treated separately in that it is highlighted depending on the urgency of the due date.
             (column "Addons" (lambda (task)
                                (fmt-join dsp (map (lambda (addon)
-                                                    (cat ((if (and (equal? (car addon) 'due) (date-soon (cdr addon)))
+                                                    (cat ((if (and (equal? (car addon) 'due) (date? (cdr addon)) (date-soon (cdr addon)))
                                                               ;; If the property is "due" and the due date is due soon, colour it.
                                                               (o fmt-bold (colour-days-out (cdr addon)))
                                                               ;; Otherwise leave as is
@@ -334,7 +334,7 @@
                                                 ids
                                                 (lambda (t)
                                                   ;; If the task has a due date and a recur property
-                                                  (if (and (assoc 'recur (task-property t)) (assoc 'due (task-property t)))
+                                                  (if (and (assoc 'recur (task-property t)) (assoc 'due (task-property t)) (date? (assoc-v 'due (task-property t))) (number? (assoc-v 'recur (task-property t))))
                                                       ;; Add the value of the recur property to the due date of the task and return that new task
                                                       (begin
                                                         (fmt #t (fmt-unicode (fmt-bold "Task is recurrent, adding another in the future") nl) )
