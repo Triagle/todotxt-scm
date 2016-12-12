@@ -68,7 +68,7 @@
 (define property-text
   (as-string (one-or-more (in (char-set-difference char-set:graphic (->char-set " :,"))))))
 (define property-value-literal
-  (any-of date (as-number (one-or-more digit) ) property-text))
+  (any-of date (as-number (repeated digit until: (in space))) property-text))
 (define property-list
   (bind (sequence (one-or-more (sequence* [(list-item property-value-literal) (_ (is #\,))]
                                 (result list-item))) property-value-literal)
