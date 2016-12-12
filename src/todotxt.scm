@@ -112,13 +112,6 @@
   (format-date #f "~Y-~m-~d" date))
 (define (time->days time)
   (/ (time->seconds time) 86400))
-(define (tdate->date date-obj)
-  (if date-obj
-      (make-date 0 0 0 0 (caddr date-obj) (cadr date-obj) (car date-obj))
-      #f))
-(define (date->datestr date-obj)
-  (format-date "~Y-~m-~d" date-obj))
-
 (define (date-soon date)
   ;; Note that date at this point is a string
   (if date
@@ -134,7 +127,7 @@
         (today (current-date))]
     (if task-date
         (update-task task
-                     property: (cons (cons 'due (date->datestr
+                     property: (cons (cons 'due (date->str
                                                   (date-add-duration (if (date>? today task-date)
                                                                          today
                                                                          task-date)
@@ -180,8 +173,6 @@
             (loop (cdr lines) (cons (update-task (parse task (car lines))
                                                  id: id) acc) (+ id 1))))
       #f))
-(define (format-tasks-to-alists tasks)
-  (map task->alist tasks))
 (define (format-tasks-as-file tasks)
   (string-append (string-join (map task->string tasks) "\n") "\n"))
 ;; Todo list manipulation
