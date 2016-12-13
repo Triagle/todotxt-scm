@@ -7,6 +7,19 @@
   ;; x Do this really important thing
   inbox id done completed-date date priority text project context property)
 ;; Todo.txt regexes
+(define (leap-year? year)
+  ;; Return #t if year is a leap year, #f otherwise
+  (cond
+   ((> (modulo year 4) 0) #f)
+   ((> (modulo year 100) 0) #t)
+   ((> (modulo year 400) 0) #f)
+   (#t #t)))
+(define (valid-day year month day)
+  ;; Returns #t if the day is valid for the given month and year
+  (case month
+    ((2) (<= day (if (leap-year? year) 29 28)))
+    ((9 5 6 11) (<= day 30))
+    (else (<= day 31))))
 (define (new-task)
   (make-task
    text: ""
@@ -30,8 +43,13 @@
   (char-seq "-"))
 
 (define date
+  ;; date parses a date string, returning the result as an srfi-19 date object
+  ;; The grammar for this looks like 2016-03-12, in the YYYY-MM-DD format.
+  ;; The day month and year is automatically checked for validity
   (sequence* ((y (digits 4)) (_ dash) (m (digits 2)) (_ dash) (d (digits 2)))
-             (result (make-date 0 0 0 0 d m y))))
+             (if (or (> m 12) (= 0 m) (= 0 d) (not (valid-day y m d)))
+                 (fail #f)
+                 (result (make-date 0 0 0 0 d m y)))))
 (define completed
   (bind (char-seq "x ")
         (lambda (_) (result (cut update-task <> done: #t)))))
