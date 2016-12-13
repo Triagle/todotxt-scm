@@ -54,7 +54,7 @@
   ;; The day month and year is automatically checked for validity
   (sequence* ((y (digits 4)) (_ dash) (m (digits 2)) (_ dash) (d (digits 2)))
              (if (or (> m 12) (= 0 m) (= 0 d) (not (valid-day y m d)))
-                 (fail #f)
+                 fail
                  (result (make-date 0 0 0 0 d m y)))))
 (define completed
   ;; This indicates that a task is a completed item, matching "x "
