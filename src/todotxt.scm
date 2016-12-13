@@ -17,7 +17,7 @@
   ;; Returns #t if the day is valid for the given month and year
   (case month
     ((2) (<= day (if (leap-year? year) 29 28)))
-    ((9 5 6 11) (<= day 30))
+    ((4 6 9 11) (<= day 30))
     (else (<= day 31))))
 (define (new-task)
   ;; Returns a task with the default values filled out
