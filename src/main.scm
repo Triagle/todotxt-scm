@@ -337,7 +337,7 @@
                                                 ids
                                                 (lambda (t)
                                                   ;; If the task has a due date and a recur property
-                                                  (if (and (assoc 'recur (task-property t)) (assoc 'due (task-property t)) (date? (assoc-v 'due (task-property t))) (number? (assoc-v 'recur (task-property t))))
+                                                  (if (and (assoc 'recur (task-property t)) (assoc 'due (task-property t)) (date? (assoc-v 'due (task-property t))) (time? (assoc-v 'recur (task-property t))))
                                                       ;; Add the value of the recur property to the due date of the task and return that new task
                                                       (begin
                                                         (fmt #t (fmt-unicode (fmt-bold "Task is recurrent, adding another in the future") nl) )

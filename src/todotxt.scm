@@ -1,8 +1,7 @@
 (declare (unit todotxt))
 (declare (uses todotxt-utils))
 (require-extension defstruct comparse srfi-19-date srfi-19-time fmt numbers srfi-19-io srfi-19-support)
-(use comparse defstruct utils srfi-14 srfi-19-date srfi-19-time fmt numbers srfi-19-io srfi-19-support)
-(defstruct task
+(use comparse defstruct utils srfi-14 srfi-19-date srfi-19-time fmt numbers srfi-19-io srfi-19-support) (defstruct task
   ;; (A) 2011-03-02 Call Mum +family @phone
   ;; x Do this really important thing
   inbox id done completed-date date priority text project context property)
@@ -48,6 +47,19 @@
 (define dash
   ;; A literal "-"
   (char-seq "-"))
+(define (duration-modifier n)
+  (bind (in (->char-set "dwmy"))
+        (lambda (character)
+          (result (* (case character
+                       ((#\d) 1)
+                       ((#\w) 7)
+                       ((#\m) 30)
+                       ((#\y) 365)) n)))))
+(define duration
+  (bind (one-or-more (sequence* ((n (as-number (one-or-more digit))) (days (duration-modifier n)))
+                                (result days)))
+        (lambda (days)
+          (result (make-duration days: (reduce + 0 days))))))
 (define date
   ;; date parses a date string, returning the result as an srfi-19 date object
   ;; The grammar for this looks like 2016-03-12, in the YYYY-MM-DD format.
@@ -117,7 +129,7 @@
   (as-string (one-or-more (in (char-set-difference char-set:graphic (->char-set " :,"))))))
 (define property-value-literal
   ;; A property literal is either a date, and number, or some text
-  (any-of date (as-number (repeated digit until: (in space))) property-text))
+  (any-of date duration (as-number (repeated digit until: (in space))) property-text))
 (define property-list
   ;; Property list is a sequence of property literal values, separated by ",".
   (bind (sequence (one-or-more (sequence* [(list-item property-value-literal) (_ (is #\,))]
@@ -193,6 +205,18 @@
 (define (time->days time)
   ;; Convert a time interval into an interval of days
   (/ (time->seconds time) 86400))
+(define (duration->string duration)
+  (let loop ((days (time->days duration))
+             (duration-string "")
+             (converter '((365 "y") (30 "m") (7 "w") (1 "d"))))
+    (if (null-list? converter)
+        duration-string
+        (let* [(duration-of-days (caar converter))
+               (duration-denoter (cadar converter))
+               (number-of-duration (floor (/ days duration-of-days)))]
+          (if (zero? number-of-duration)
+              (loop days duration-string (cdr converter))
+              (loop (- days (* duration-of-days number-of-duration)) (string-append duration-string (->string number-of-duration) duration-denoter) (cdr converter)))))))
 (define (date-soon date)
   ;; Return a boolean indicating whether a date is due relatively soon
   ;; Overdue date are also considered "soon"
@@ -206,7 +230,7 @@
   (if date
       (let [(now (current-date))]
         (time->days (date-difference now date)))))
-(define (task-due-add task days)
+(define (task-due-add task duration)
   ;; Add days to the task's due date, or if the due date is prior to the current date, to the current date
   (let [(task-date (assoc-v 'due (task-property task)))
         (today (current-date))]
@@ -216,7 +240,7 @@
                                                   (date-add-duration (if (date>? today task-date)
                                                                          today
                                                                          task-date)
-                                                                     (make-duration days: days))))
+                                                                     duration)))
                                      (rm-prop 'due (task-property task))))
         task)))
 (define (task-priority<? a b)
@@ -229,6 +253,7 @@
   ;; Convert a property value into a string by matching all possible types.
   ;; Property values can either be a list, date, string, or number
   (cond
+   [(time? value) (duration->string value)]
    [(list? value) (fmt-join (o dsp property-value->string) value ",")]
    [(date? value) (date->str value)]
    ;; This case handles numbers as well (->string works on many types besides)
