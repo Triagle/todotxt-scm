@@ -127,9 +127,15 @@
 (define property-text
   ;; Property values are constrained to a simpler subset of legal text, notably omitting ":" and ","
   (as-string (one-or-more (in (char-set-difference char-set:graphic (->char-set " :,"))))))
+(define number
+  (bind (as-number (one-or-more (in (->char-set "0123456789-+."))))
+        (lambda (n)
+          (if n
+              (result n)
+              fail))))
 (define property-value-literal
   ;; A property literal is either a date, and number, or some text
-  (any-of date duration (as-number (repeated digit until: (in space))) property-text))
+  (any-of date duration number property-text))
 (define property-list
   ;; Property list is a sequence of property literal values, separated by ",".
   (bind (sequence (one-or-more (sequence* [(list-item property-value-literal) (_ (is #\,))]
