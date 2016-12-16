@@ -103,15 +103,15 @@
             ;; Join the contexts of a task by ',' (e.g home,computer,mall)
             (column "Contexts" (lambda (task) (fmt-join dsp (task-context task) ", ")) tasks)
             " | "
-            ;; Join the properties/addons in the format "key:value,key1:value1"
+            ;; Join the properties in the format "key:value,key1:value1"
             ;; The "due" property is treated separately in that it is highlighted depending on the urgency of the due date.
-            (column "Addons" (lambda (task)
-                               (fmt-join dsp (map (lambda (addon)
-                                                    (cat ((if (and (equal? (car addon) 'due) (date? (cdr addon)) (date-soon (cdr addon)))
+            (column "Properties" (lambda (task)
+                               (fmt-join dsp (map (lambda (property)
+                                                    (cat ((if (and (equal? (car property) 'due) (date? (cdr property)) (date-soon (cdr property)))
                                                               ;; If the property is "due" and the due date is due soon, colour it.
-                                                              (o fmt-bold (colour-days-out (cdr addon)))
+                                                              (o fmt-bold (colour-days-out (cdr property)))
                                                               ;; Otherwise leave as is
-                                                              identity) (car addon)) ":" (property-value->string (cdr addon)))) (task-property task)) ", ")) tasks) " |"))))
+                                                              identity) (car property)) ":" (property-value->string (cdr property)))) (task-property task)) ", ")) tasks) " |"))))
 (define-syntax define-cli-interface
   ;; Simple little macro that defines the style of command line interface
   ;; The syntax is simple
@@ -260,7 +260,7 @@
                                                  (string-join todo " ")
                                                  nl))
                   (invalid-id-err (car action-args)))))
-           (("addon-modify" "admod" "am") (id key value)
+           (("property-modify" "pmod" "pm") (id key value)
             (let ((id (string->number (car action-args)))
                   (key (string->symbol (cadr action-args)))
                   (value (caddr action-args)))
@@ -272,11 +272,11 @@
                                                                                       (update-task t
                                                                                                    ;; the property is first removed from the property alist, and then consed to the front.
                                                                                                    property: (cons (cons key value) (rm-prop key (task-property t))))))))])))
-           (("addon-remove" "adrm" "ar") (id key)
+           (("property-remove" "prm" "pr") (id key)
             (let ((id (string->number (car action-args)))
                   (key (string->symbol (cadr action-args))))
               (if id
-                  ;; Remove an addon of a todo
+                  ;; Remove an property of a todo
                   (overwrite-file todo-file (format-tasks-as-file (with-task-at-id tasks id
                                                                                    (lambda (t)
                                                                                      (update-task t
