@@ -124,9 +124,11 @@
           (result (lambda (t)
                     (update-task t
                       project: (cons project (task-project t))))))))
-(define property-text
+(define property-key-text
   ;; Property values are constrained to a simpler subset of legal text, notably omitting ":" and ","
-  (as-string (one-or-more (in (char-set-difference char-set:graphic (->char-set " :,"))))))
+  (as-string (one-or-more (in (char-set-difference char-set:graphic (->char-set " :"))))))
+(define property-value-text
+  (as-string (one-or-more (in (char-set-difference char-set:graphic (->char-set " ,"))))))
 (define number
   (bind (as-number (one-or-more (in (->char-set "0123456789-+."))))
         (lambda (n)
@@ -135,7 +137,7 @@
               fail))))
 (define property-value-literal
   ;; A property literal is either a date, and number, or some text
-  (any-of date duration number property-text))
+  (any-of date duration number property-value-text))
 (define property-list
   ;; Property list is a sequence of property literal values, separated by ",".
   (bind (sequence (one-or-more (sequence* [(list-item property-value-literal) (_ (is #\,))]
@@ -154,7 +156,7 @@
   ;; An example might be "key:value", "date:2016-12-13", or "recur:1"
   ;; The key is parsed as a symbol, while the value is interpreted as either a date, number, or string
   ;; On success this returns a function that prepends the key and value to the task property alist.
-  (sequence* ((k (as-symbol property-text)) (_ (char-seq ":")) (v property-value))
+  (sequence* ((k (as-symbol property-key-text)) (_ (char-seq ":")) (v property-value))
              (result (lambda (t) (update-task t
                                               property: (cons (cons k v) (task-property t)))))))
 (define text
