@@ -1,23 +1,11 @@
 (declare (unit todotxt))
-(declare (uses todotxt-utils))
+(declare (uses todotxt-utils parse))
 (require-extension defstruct comparse srfi-19-date srfi-19-time fmt numbers srfi-19-io srfi-19-support)
-(use comparse defstruct utils srfi-14 srfi-19-date srfi-19-time fmt numbers srfi-19-io srfi-19-support) (defstruct task
+(use comparse defstruct utils srfi-14 srfi-19-date srfi-19-time fmt numbers srfi-19-io srfi-19-support)
+(defstruct task
   ;; (A) 2011-03-02 Call Mum +family @phone
   ;; x Do this really important thing
   inbox id done completed-date date priority text project context property)
-(define (leap-year? year)
-  ;; Return #t if year is a leap year, #f otherwise
-  (cond
-   ((> (modulo year 4) 0) #f)
-   ((> (modulo year 100) 0) #t)
-   ((> (modulo year 400) 0) #f)
-   (#t #t)))
-(define (valid-day year month day)
-  ;; Returns #t if the day is valid for the given month and year
-  (case month
-    ((2) (<= day (if (leap-year? year) 29 28)))
-    ((4 6 9 11) (<= day 30))
-    (else (<= day 31))))
 (define (new-task)
   ;; Returns a task with the default values filled out
   (make-task
@@ -25,49 +13,9 @@
    project: '()
    context: '()
    property: '()))
-(define space
-  ;; space aliases the char-set:whitespace variable
-  char-set:whitespace)
-(define -space
-  ;; -space defines a charset that is the inverse of whitespace (i.e every character but whitespace characters)
-  (char-set-difference char-set:graphic char-set:whitespace))
 (define legal-text
   ;; Legal text is define as a repeated string of characters of any type bar whitespace
   (as-string (repeated (in -space))))
-(define digit
-  ;; Checks if character is in the digit character set
-  (in char-set:digit))
-(define (as-number c)
-  ;; Takes the parser result as a string, and converts that string to a number
-  (bind (as-string c)
-        (o result string->number)))
-(define (digits n)
-  ;; Returns n digit characters as an integer
-  (as-number (repeated digit n)))
-(define dash
-  ;; A literal "-"
-  (char-seq "-"))
-(define (duration-modifier n)
-  (bind (in (->char-set "dwmy"))
-        (lambda (character)
-          (result (* (case character
-                       ((#\d) 1)
-                       ((#\w) 7)
-                       ((#\m) 30)
-                       ((#\y) 365)) n)))))
-(define duration
-  (bind (one-or-more (sequence* ((n (as-number (one-or-more digit))) (days (duration-modifier n)))
-                                (result days)))
-        (lambda (days)
-          (result (make-duration days: (reduce + 0 days))))))
-(define date
-  ;; date parses a date string, returning the result as an srfi-19 date object
-  ;; The grammar for this looks like 2016-03-12, in the YYYY-MM-DD format.
-  ;; The day month and year is automatically checked for validity
-  (sequence* ((y (digits 4)) (_ dash) (m (digits 2)) (_ dash) (d (digits 2)))
-             (if (or (> m 12) (= 0 m) (= 0 d) (not (valid-day y m d)))
-                 fail
-                 (result (make-date 0 0 0 0 d m y)))))
 (define completed
   ;; This indicates that a task is a completed item, matching "x "
   ;; It returns a function that toggles a passed task's completed state to true
@@ -129,28 +77,15 @@
   (as-string (one-or-more (in (char-set-difference char-set:graphic (->char-set " :"))))))
 (define property-value-text
   (as-string (one-or-more (in (char-set-difference char-set:graphic (->char-set " ,"))))))
-(define number
-  (bind (as-number (one-or-more (in (->char-set "0123456789-+."))))
-        (lambda (n)
-          (if n
-              (result n)
-              fail))))
 (define property-value-literal
   ;; A property literal is either a date, and number, or some text
   (any-of date duration number property-value-text))
 (define property-list
-  ;; Property list is a sequence of property literal values, separated by ",".
-  (bind (sequence (one-or-more (sequence* [(list-item property-value-literal) (_ (is #\,))]
-                                (result list-item))) property-value-literal)
-        (o result flatten)))
+  (list-of property-value-literal))
 (define property-value
   ;; This is the value portion of the key value pair in a property
   ;; It can either be a literal value, or list of literal values
   (any-of property-list property-value-literal))
-(define (as-symbol parser)
-  ;; Return the parser's result as a symbol
-  (bind (as-string parser)
-        (o result string->symbol)))
 (define property
   ;; A property is a key value pair that describes a property of a task
   ;; An example might be "key:value", "date:2016-12-13", or "recur:1"
@@ -237,7 +172,7 @@
   ;; Return the difference in days between now and date
   (if date
       (let [(now (current-date))]
-        (time->days (date-difference now date)))))
+        (date-difference now date))))
 (define (task-due-add task duration)
   ;; Add days to the task's due date, or if the due date is prior to the current date, to the current date
   (let [(task-date (assoc-v 'due (task-property task)))

@@ -1,7 +1,16 @@
 ;; Main CLI interface
-(declare (uses todotxt todotxt-utils))
-(require-extension fmt fmt-unicode comparse irregex fmt-color numbers symbol-utils srfi-19-support)
-(use fmt fmt-color fmt-unicode irregex utils comparse numbers symbol-utils srfi-19-support)
+(declare (uses todotxt todotxt-utils config))
+(require-extension fmt fmt-unicode comparse irregex fmt-color numbers symbol-utils srfi-19-support srfi-19-time)
+(use fmt fmt-color fmt-unicode irregex utils comparse numbers symbol-utils srfi-19-support srfi-19-time)
+
+;; Default configuration
+(define configuration (list
+                       (cons 'todo-dir #f)
+                       (cons 'overdue-colour fmt-red)
+                        (cons 'priority-colours (list (list #\A fmt-red)))
+                        (cons 'time-colours (list (list (make-duration days: 1) fmt-red)))))
+
+
 (define (print-application list display-fn join)
   ;; Print a list of the result of display-fn on every item in list
   (fmt #t (fmt-unicode (fmt-join (o dsp display-fn) list "\n") nl)))
@@ -24,22 +33,19 @@
 (define (list-unique-properties tasks property-fn)
   ;; Return a list where each item is a distinct (unique) result of applying property-fn on all tasks
   (delete-duplicates (flatten (map property-fn tasks))))
-(define (colour-days-out date-str)
+(define (colour-days-out configuration date-str)
   ;; Return a colour function that indicates to the user how far away a due date is
   ;; The due date is in string form initially (date-str), however this is parsed internally by date-cmp-now
-  (let [(days-from-now (date-cmp-now date-str))] ;; date-cmp-now gets the number of days from now the due date is
+  (let [(time-from-now (date-cmp-now date-str))] ;; date-cmp-now gets the number of days from now the due date is
     ;; date-cmp-now has one of three possible valid return values
     ;; - A positive number, i.e the date is earlier than now
     ;; - A negative number, i.e the date is later than now
     ;; - 0, i.e the same dates
     ;; The exact number of days is mapped to red, blue and white.
-    (cond
-     ;; The task is overdue!!
-     [(>= days-from-now 0) fmt-red]
-     ;; The task is < 2 days out. I like to be warned that a task is impending, so that I can prioritize it.
-     [(< days-from-now -2) fmt-blue]
-     ;; The task has a due date, but it is too far out to be of much significance.
-     [#t fmt-white])))
+    (if (>= (time->days time-from-now) 0)
+        (assoc-v 'overdue-colour configuration)
+        (cadr (or (find (lambda (time-kv)
+                          (<= (time-compare time-from-now (car time-kv)) 0)) (assoc-v 'time-colours configuration)) (list #f dsp))))))
 (define (open file)
   ;; Open file using xdg-open.
   (system (string-append "xdg-open" " " file)))
@@ -57,15 +63,13 @@
   ;; Map a list of comma delimited ids to numbers
   ;; e.g "1,2,3" -> '(1 2 3)
   (map string->number (string-split arg ",")))
-(define (colour-priority task)
+(define (colour-priority cfg task)
   ;; Colour a task's priority based on it's importance
   ;; The priorities are mapped as follows:
   ;; A -> bolded text
   ;; Everything else -> unchanged
   (let ((priority (task-priority task)))
-    (cond
-     ((equal? priority #\A) (fmt-bold priority))
-     (#t priority))))
+    ((car (assoc-v priority (assoc-v 'priority-colours cfg) default: (list dsp))) (or priority ""))))
 (define (edit file)
   ;; Open the file in an appropriate editor. By default this is vi (for compatibility reasons), but can be the value of $EDITOR if set
   (let [(editor (or (get-environment-variable "EDITOR") "vi"))]
@@ -76,7 +80,7 @@
   (cat title "\n" (fmt-join (lambda (x)
                               ;; Either take the value of the formatter on item x, or if that returns #f an empty string ""
                               (dsp (or (formatter x) ""))) tasks "\n")))
-(define (print-tasks tasks)
+(define (print-tasks configuration tasks)
   ;; Print tasks in table form, with each column growing as required
   (fmt #t (fmt-unicode
            (tabular
@@ -87,7 +91,7 @@
                                          (num (task-id x)))) tasks)
             " | "
             ;; See colour-priority for how this is formatted
-            (column "Priority" colour-priority tasks)
+            (column "Priority" (cut colour-priority configuration <>) tasks)
             " | "
             ;; If the task is done, the task text is formatted in green, and is otherwise normal text
             (column "Task" (lambda (task)
@@ -107,9 +111,9 @@
             ;; The "due" property is treated separately in that it is highlighted depending on the urgency of the due date.
             (column "Properties" (lambda (task)
                                (fmt-join dsp (map (lambda (property)
-                                                    (cat ((if (and (equal? (car property) 'due) (date? (cdr property)) (date-soon (cdr property)))
+                                                    (cat ((if (and (equal? (car property) 'due) (date? (cdr property)))
                                                               ;; If the property is "due" and the due date is due soon, colour it.
-                                                              (o fmt-bold (colour-days-out (cdr property)))
+                                                              (colour-days-out configuration (cdr property))
                                                               ;; Otherwise leave as is
                                                               identity) (car property)) ":" (property-value->string (cdr property)))) (task-property task)) ", ")) tasks) " |"))))
 (define-syntax define-cli-interface
@@ -172,14 +176,17 @@
   ;; The list always contains the current directory, with the supplied arguments being fallbacks.
   (let [(directories (cons "./" fallback-dirs))]
     (find (lambda (dir)
-            (and (file-exists? (string-append dir "todo.txt")) (file-exists? (string-append dir "done.txt")))) directories)))
+            (and dir (file-exists? (string-append dir "todo.txt")) (file-exists? (string-append dir "done.txt")))) directories)))
 (define (run args)
   ;; args is a list of strings contained the arguments passed to the executable
   ;; e.g '("pri" "2" "A")
-  (let* (;; The first item in the list of arguments is always the action
+  (let* (;; Configuration
+         (configuration (or (parse-config-file (get-environment-variable "TODO_CONFIG_DIR")) configuration))
+         ;; The first item in the list of arguments is always the action
          (action (or (= (length args) 0) (car args)))
          ;; Get an applicable todo directory to source the todo.txt and done.txt file from
-         (todo-dir (or (get-applicable-todo-directory (get-environment-variable "TODO_DIR")) (begin (err "No applicable todo directory found.")
+         (todo-dir (or (get-applicable-todo-directory (assoc-v 'todo-dir configuration default: #f)
+                                                      (get-environment-variable "TODO_DIR")) (begin (print (assoc-v 'todo-dir configuration default: #f))
                                                                                                     (exit -1))))
          ;; Path representation of the todo.txt file
          (todo-file (string-append todo-dir "todo.txt"))
@@ -201,7 +208,7 @@
                   ;; Tasks are filtered using the standard task filter, and then sorted by their priority
                   (tasks (sort (filter (standard-task-filter (string-join action-args " ") (equal? action "listall"))
                                        (append tasks done-tasks)) task-priority<?)))
-              (print-tasks tasks)
+              (print-tasks configuration tasks)
               (fmt #t
                    "---" nl
                    (length tasks) " out of " task-count " task" (if (= task-count 1)
