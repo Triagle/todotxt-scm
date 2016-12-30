@@ -2,11 +2,8 @@
 
 (define (write-to-a-file path txt)
   ;; Append text txt to file at path
-  (print txt)
-  (print path)
   (call-with-output-file path
     (lambda (output-port)
-      (print output-port)
       (format output-port "~a~%" txt))
     #:append))
 
