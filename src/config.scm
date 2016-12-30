@@ -5,8 +5,12 @@
 (define space
   ;; space aliases the char-set:whitespace variable
   (char-set-difference char-set:whitespace (->char-set "\r\n")))
+(define space+newline
+  char-set:whitespace)
 (define non-mandatory-whitespace
   (zero-or-more (in space)))
+(define non-mandatory-whitespace+newline
+  (zero-or-more (in space+newline)))
 (define key-charset
   (char-set-difference char-set:graphic (->char-set "=")))
 (define key
@@ -18,7 +22,12 @@
 (define (as-list p)
   (bind p (o result list)))
 (define (array value)
-  (enclosed-by (is #\[) (any-of (list-of value sep: (sequence (is #\,) non-mandatory-whitespace)) (as-list value)) (is #\])))
+  (sequence* ((_ (is #\[))
+              (_ non-mandatory-whitespace+newline)
+              (a (any-of (list-of value sep: (sequence non-mandatory-whitespace+newline (is #\,) non-mandatory-whitespace+newline)) (as-list value)))
+              (_ non-mandatory-whitespace+newline)
+              (_ (is #\])))
+             (result a)))
 (define character
   (enclosed-by (is #\') (in (char-set-difference char-set:printing (->char-set "'"))) (is #\')))
 (define colour-set
