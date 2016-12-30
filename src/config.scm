@@ -74,7 +74,9 @@
 (define newline-char
   (char-seq "\n"))
 (define lines
-  (any-of (list-of (any-of comment line) sep: newline-char) line))
+  (bind (any-of (list-of (any-of comment line) sep: newline-char) line)
+        (lambda (res)
+          (result (filter (complement (cut equal? #t <>)) res)))))
 (define section-header
   (as-symbol (enclosed-by (is #\[) (text subset: "\r\n[]") (is #\]))))
 (define section
