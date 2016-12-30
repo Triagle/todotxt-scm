@@ -44,8 +44,7 @@
     ;; The exact number of days is mapped to red, blue and white.
     (if (>= (time->days time-from-now) 0)
         (assoc-v 'overdue-colour configuration)
-        (cadr (or (find (lambda (time-kv)
-                          (<= (time-compare time-from-now (car time-kv)) 0)) (assoc-v 'time-colours configuration)) (list #f dsp))))))
+        (cadr (or (find (lambda (time-kv) (> (time->days (time-abs (car time-kv))) (time->days (time-abs time-from-now)))) (assoc-v 'time-colours configuration)) (list #f dsp))))))
 (define (open file)
   ;; Open file using xdg-open.
   (system (string-append "xdg-open" " " file)))
@@ -181,7 +180,7 @@
   ;; args is a list of strings contained the arguments passed to the executable
   ;; e.g '("pri" "2" "A")
   (let* (;; Configuration
-         (configuration (or (parse-config-file (get-environment-variable "TODO_CONFIG_DIR")) configuration))
+         (configuration (or (parse-config-file (get-environment-variable "TODO_CONFIG")) configuration))
          ;; The first item in the list of arguments is always the action
          (action (or (= (length args) 0) (car args)))
          ;; Get an applicable todo directory to source the todo.txt and done.txt file from
