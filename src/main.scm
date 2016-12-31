@@ -294,6 +294,11 @@
            (("capture" "c") ()
             ;; Capture a todo as an inbox item directly
             (write-to-a-file todo-file (string-append "* " (string-join action-args " "))))
+           (("cat" "cat-all") ()
+            ;; Print the raw text contents of either the todo.txt file, or done.txt file
+            (if (equal? action "cat")
+                (print (read-all todo-file))
+                (print (read-all todo-file) "\n" (read-all done-file))))
            (("open" "o") (id)
             ;; Open the attachments of a todo at id, prompting for file selection if necessary
             (let* [(id (string->number (car action-args)))
