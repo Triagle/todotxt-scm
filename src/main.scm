@@ -180,7 +180,7 @@
   ;; args is a list of strings contained the arguments passed to the executable
   ;; e.g '("pri" "2" "A")
   (let* (;; Configuration
-         (configuration (append (parse-config-file (get-environment-variable "TODO_CONFIG")) configuration))
+         (configuration (append (or (parse-config-file (get-environment-variable "TODO_CONFIG")) '()) configuration))
          ;; The first item in the list of arguments is always the action
          (action (or (= (length args) 0) (car args)))
          ;; Get an applicable todo directory to source the todo.txt and done.txt file from
