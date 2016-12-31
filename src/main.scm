@@ -227,7 +227,7 @@
            (("inbox" "in") ()
             ;; Similar to ls and next, but the standard task filter is replaced with one that simply filters by tasks that are marked as inbox items
             (let [(tasks (filter task-inbox tasks))]
-              (print-tasks tasks)))
+              (print-tasks configuration tasks)))
            (("refile") (id)
             ;; Overwrite the existing todo file, where the task at id is changed such that it no longer has an inbox status
             (let [(id (string->number (car action-args)))]
