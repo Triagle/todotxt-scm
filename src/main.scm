@@ -291,6 +291,9 @@
            (("add" "a") ()
             ;; Simple append text passed as the arguments to a file.
             (write-to-a-file todo-file (string-join action-args " ")))
+           (("capture" "c") ()
+            ;; Capture a todo as an inbox item directly
+            (write-to-a-file todo-file (string-append "* " (string-join action-args " "))))
            (("open" "o") (id)
             ;; Open the attachments of a todo at id, prompting for file selection if necessary
             (let* [(id (string->number (car action-args)))
