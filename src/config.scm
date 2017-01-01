@@ -76,7 +76,10 @@
 (define lines
   (bind (any-of (list-of (any-of comment line) sep: newline-char) line)
         (lambda (res)
-          (result (filter (complement (cut equal? #t <>)) res)))))
+          (let [(res (if (list? res)
+                         res
+                         (list res)))]
+            (result (filter (complement (cut equal? #t <>)) res))))))
 (define section-header
   (as-symbol (enclosed-by (is #\[) (text subset: "\r\n[]") (is #\]))))
 (define section
