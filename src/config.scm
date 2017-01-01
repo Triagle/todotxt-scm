@@ -61,7 +61,7 @@
 (define comment
   (skip (sequence (is #\#) non-mandatory-whitespace (zero-or-more (in (char-set-difference char-set:printing (->char-set "\r\n")))))))
 (define line
-  (sequence* [(_ non-mandatory-whitespace)
+  (sequence* [(_ non-mandatory-whitespace+newline)
               (key (as-symbol key))
               (_ non-mandatory-whitespace)
               (_ (is #\=))
@@ -69,17 +69,15 @@
               (value value)
               (_ non-mandatory-whitespace)
               (_ (maybe comment))
+              (_ non-mandatory-whitespace+newline)
               ]
              (result (cons key value))))
 (define newline-char
   (char-seq "\n"))
 (define lines
-  (bind (any-of (list-of (any-of comment line) sep: newline-char) line)
+  (bind (repeated (any-of comment line) until: end-of-input)
         (lambda (res)
-          (let [(res (if (list? res)
-                         res
-                         (list res)))]
-            (result (filter (complement (cut equal? #t <>)) res))))))
+          (result (filter (complement (cut equal? #t <>)) res)))))
 (define section-header
   (as-symbol (enclosed-by (is #\[) (text subset: "\r\n[]") (is #\]))))
 (define section
