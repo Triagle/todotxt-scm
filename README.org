@@ -1,67 +1,105 @@
-#+TITLE: Todo.txt CLI for Chicken Scheme
-* What is it?
-A [[http://todotxt.com/][todo.txt]] client written in Chicken Scheme for those lisp completionists
-* Why is it?
-Because I can. Also for some peculiar reason the official CLI doesn't work for
-me.
-* Setup
-To start you'll need to get[[http://www.call-cc.org/][ Chicken Scheme]] installed on your system. Refer to
-your distribution's documentation for this.
+#+TITLE: todo.txt-scm
 
-Firstly you'll need some chicken eggs
+[[file:screen.png]]
+
+[[https://github.com/ginatrapani/todo.txt-cli.git][Todo.txt]] is a simple plain text file todo list, with shell script client. This
+project aims to improve of it's strengths while providing a better fit for the
+GTD inclined. todo.txt-scm comes with multiple improvements over the original
+implementation, including support for due dates, recurring tasks, attachments,
+inbox items, and next actions.
+
+* Features
+todo.txt-scm comes with the multitude of advantages the original plain text
+todo.txt setup comes with including:
+
+- *Simple* human readable storage format
+- *Contextual* task information (/@phone/, /@computer/, etc...)
+- *Projects*
+- *Priorities*
+- Task *properties* (/due:2016-01-01/)
+
+In developing this tool, a number of new features that compliment the original
+format have been added such as:
+
+- Support and syntax for *inbox items*
+- *Next actions*
+- Task *due dates*
+- *Recurring tasks*
+- Revamped *tabular output*
+- Task *attachments*
+- Multiple *convenience commands*
+- *Configuration file* support
+
+All of this exists whilst still being compatible with the todo.txt format and
+functionally able to be used in the exact same fashion.
+
+* Installation
+** Prerequisites
+This project is built with[[http://wiki.call-cc.org/][ chicken scheme]], which is usually installed through
+a distributions repositories or built from scratch at it's[[http://code.call-cc.org/][ download page]].
+
+Furthermore, in order to run the program you'll need a few extra libraries (or
+eggs in chicken parlance). To install these run the following command
+
 #+BEGIN_SRC shell
-  chicken-install -s list-utilsirregex defstruct fmt
+chicken-install -s fmt irregex comparse numbers symbol-utils srfi-19 defstruct
 #+END_SRC
 
-Next run the build command using [[https://ninja-build.org/][ninja]]
+Finally the build system used for this project is[[https://ninja-build.org/][ ninja]]. You can [[https://github.com/ninja-build/ninja/releases][download]] it, or
+install ninja from your distribution's[[https://github.com/ninja-build/ninja/wiki/Pre-built-Ninja-packages][ repositories]].
+** Setup
+After cloning the repository, =cd= into it's top level directory and run =ninja=
+
 #+BEGIN_SRC shell
-  ninja
+cd todo.txt-scm
+ninja
 #+END_SRC
 
-Then you need to set the =TODO_FILE= environment variable, this is the location of
-the todo.txt file
+You will find the built executable in the =build= directory. Simply move this to
+somewhere in your =PATH= and you have successfully installed the program.
+** Configuration
+After installing the program you need to let it know where you are keeping your
+todo files. First create the todo directory and create the required todo.txt and
+done.txt files
+
 #+BEGIN_SRC shell
-  export TODO_FILE="~/.todo/todo.txt"
+mkdir todo
+touch todo.txt
+touch done.txt
 #+END_SRC
 
-Done!
+Next you can either use the =TODO_DIR= environment variable or the configuration
+file to tell the program where to find your files.
 
-* Examples
-This program should be functionally equivalent to the actual shell script,
-meaning anything that would work there should work with this. Currently not
-everything is there yet, but I'm working on it.
+If you choose to use the environment variable try
+#+BEGIN_SRC shell
+export TODO_DIR="/path/to/todo/dir/" # path should also end in "/"
+#+END_SRC
 
-** Adding
-#+BEGIN_SRC shell
-  todo add this is a task that I want to complete
-#+END_SRC
-The =todo add= command is really just writing to a file so you can do things like
-#+BEGIN_SRC shell
-  todo add "(A) test"
-#+END_SRC
-Which will add the priority in the process.
+If you choose to use the configuration file you'll need to first create the file somewhere
 
-** Listing
-Listing works as you'd expect
 #+BEGIN_SRC shell
-  todo list
+# cd ~
+touch .todo.cfg
 #+END_SRC
-However you may want to search, which you can do by adding any string the end.
-#+BEGIN_SRC shell
-  todo list boss
-#+END_SRC
-Additionally to list even the done todo items try =todo listall=, the same above
-properties work for that too.
 
-** Completing
-To complete simply use the =todo done= command to mark an item as done.
-#+BEGIN_SRC shell
-  todo done 1 # this bit is the task id
+You can then use the =todo-dir= property to point to where your todo files are
+kept
+
+#+BEGIN_SRC conf
+  todo-dir = "/path/to/todo/dir/" # Comments are supported here too!
 #+END_SRC
-The task id can be found by using the aforementioned list command. For instance
-if you type =todo list= and get an output of
-#+BEGIN_EXAMPLE
-| ID | Priority | Task                                         | Projects | Contexts |
-| 2  | A        | really important task                        |          |          |
-| 3  | B        | not as important, but still needs to be done |          |          |
-#+END_EXAMPLE
+
+Finally you can use the =TODO_CONFIG= variable to point to this new configuration
+file.
+
+#+BEGIN_SRC shell
+export TODO_CONFIG="/path/to/.todo.cfg"
+#+END_SRC
+* Usage
+
+You can either checkout the[[https://asciinema.org/a/erjllgeee0w289yhi2y4g2r0r][ asciicast]], or the project's wiki for detailed
+information on how to effectively use todo.txt-scm.
+
+I recommend skimming through the asciicast if no input is received for more than
+20 or so seconds, I take regular breaks to help with RSI issues.
