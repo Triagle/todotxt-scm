@@ -7,4 +7,5 @@ build build/object/utils.o: scm src/utils.scm
 build build/object/parse.o: scm src/parse.scm
 build build/object/main.o: scm src/main.scm
 build build/object/config.o: scm src/config.scm
-build build/todo: link build/object/config.o build/object/parse.o build/object/utils.o  build/object/todotxt.o build/object/main.o
+build build/object/uri.o: scm src/uri.scm
+build build/todo: link build/object/uri.o build/object/config.o build/object/parse.o build/object/utils.o  build/object/todotxt.o build/object/main.o

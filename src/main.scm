@@ -1,14 +1,7 @@
 ;; Main CLI interface
-(declare (uses todotxt todotxt-utils config))
+(declare (uses todotxt todotxt-utils config uri))
 (require-extension fmt fmt-unicode comparse irregex fmt-color numbers symbol-utils srfi-19-support srfi-19-time)
 (use fmt fmt-color fmt-unicode irregex utils comparse numbers symbol-utils srfi-19-support srfi-19-time)
-(define uri-text
-  (as-string (one-or-more (none-of* (in (->char-set "/")) item))))
-(define link
-  (sequence* [(_ (char-seq "todo://")) (l (one-or-more (char-seq-split "/"))) (l* (maybe (as-string (one-or-more item))))]
-             (result (if l*
-                         (append l (list l*))
-                         l))))
 (define (shell-escape str)
   (irregex-replace/all "'" str "'\''"))
 ;; Default configuration
