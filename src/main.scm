@@ -3,8 +3,11 @@
 (require-extension fmt fmt-unicode comparse irregex fmt-color numbers symbol-utils srfi-19-support srfi-19-time)
 (use fmt fmt-color fmt-unicode irregex utils comparse numbers symbol-utils srfi-19-support srfi-19-time)
 
+(define (shell-escape str)
+  (irregex-replace/all "'" str "'\''"))
 ;; Default configuration
 (define configuration (list
+                       (cons 'show-command "notify-send \"todo\"")
                        (cons 'todo-dir #f)
                        (cons 'overdue-colour fmt-red)
                        (cons 'priority-colours (list (list #\A fmt-red)))
@@ -396,6 +399,9 @@
                   (overwrite-file todo-file (format-tasks-as-file (with-tasks-at-ids tasks ids
                                                                                      (cut add-to-todo <> 'project task-project project))))
                   (invalid-id-err (car action-args)))))
+           (("show") (id)
+
+            (system (string-append (assoc-v 'show-command configuration) " '" (shell-escape (task->string (task-at tasks (string->number (car action-args))))) "'")))
            (("rm-project" "rp") (ids project)
             (let ((ids (as-ids (car action-args)))
                   (project (cadr action-args)))
