@@ -48,7 +48,7 @@
         (cadr (or (find (lambda (time-kv) (> (time->days (time-abs (car time-kv))) (time->days (time-abs time-from-now)))) (assoc-v 'time-colours configuration)) (list #f dsp))))))
 (define (open file)
   ;; Open file using xdg-open.
-  (system (string-append "xdg-open" " " file)))
+  (system (string-append "xdg-open" " '" (shell-escape file) "'")))
 (define (err summary body)
   ;; Print a standard error message
   ;; The summary of this message is bolded and red, separated from the standard body text by a colon
@@ -315,7 +315,7 @@
                ;; Attachments is a garbage value, i.e not a list of strings or not a string
                [(not (or (string? attachments) (and (list? attachments) (every string? attachments)))) (fmt #t (fmt-bold (fmt-red "Invalid attachment(s): ")) (property-value->string attachments) nl)]
                ;; If only one attachment, assume the user intends to open it and don't bug them
-               [(string? attachments) (edit attachments)]
+               [(string? attachments) (open attachments)]
                ;; No attachments, therefore just print that none were found.
                [(null-list? attachments) (fmt #t "No attachments found for the selected task." nl)]
                [#t (let [(attachment-pair
