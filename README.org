@@ -29,6 +29,7 @@ format have been added such as:
 - Task *attachments*
 - Multiple *convenience commands*
 - *Configuration file* support
+- Custom link protocol for *external application integration* (like [[http://orgmode.org/worg/org-contrib/org-protocol.html][org-protocol]])
 
 All of this exists whilst still being compatible with the todo.txt format and
 functionally able to be used in the exact same fashion.
