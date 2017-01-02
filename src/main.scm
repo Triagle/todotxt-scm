@@ -2,7 +2,13 @@
 (declare (uses todotxt todotxt-utils config))
 (require-extension fmt fmt-unicode comparse irregex fmt-color numbers symbol-utils srfi-19-support srfi-19-time)
 (use fmt fmt-color fmt-unicode irregex utils comparse numbers symbol-utils srfi-19-support srfi-19-time)
-
+(define uri-text
+  (as-string (one-or-more (none-of* (in (->char-set "/")) item))))
+(define link
+  (sequence* [(_ (char-seq "todo://")) (l (one-or-more (char-seq-split "/"))) (l* (maybe (as-string (one-or-more item))))]
+             (result (if l*
+                         (append l (list l*))
+                         l))))
 (define (shell-escape str)
   (irregex-replace/all "'" str "'\''"))
 ;; Default configuration
@@ -12,7 +18,6 @@
                        (cons 'overdue-colour fmt-red)
                        (cons 'priority-colours (list (list #\A fmt-red)))
                        (cons 'time-colours (list (list (make-duration days: 1) fmt-red)))))
-
 
 (define (print-application list display-fn join)
   ;; Print a list of the result of display-fn on every item in list
@@ -149,6 +154,8 @@
          (define-cli-interface args (actions* ...))))
     ;; Base case, if the user has specified an action that is unknown
     ((_ args ()) (fmt #t (fmt-unicode (fmt-red (fmt-bold "Unrecognized action: ")) (car args) "." nl)))))
+(define (task-at tasks id)
+  (find (lambda (task) (= (task-id task) id)) tasks))
 (define (with-task-at-id tasks id thunk)
   ;; Map over tasks, applying thunk to the task whose id matches the one selected.
   (map (lambda (task) (if (= (task-id task) id) ;; If task id matches
@@ -429,6 +436,7 @@
                       (err "Invalid Priority" new-priority))
                   (invalid-id-err (car action-args)))))))
         (err "Todo file invalid: " (cat "Todo file at " todo-dir " is missing, damaged, or otherwise unreadable.")))))
-(if (> (length (argv)) 1)
-    (run (cdr (argv)))
-    (fmt #t (dsp "todo [action-name] [action-args]") nl))
+(let [(args (argv))]
+  (cond
+   [(> (length args) 1) (run (or (parse link (string-join (cdr args) " ")) (cdr args)))]
+   [(fmt #t (dsp "todo [action-name] [action-args]") nl)]))
