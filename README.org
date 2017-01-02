@@ -43,7 +43,7 @@ Furthermore, in order to run the program you'll need a few extra libraries (or
 eggs in chicken parlance). To install these run the following command
 
 #+BEGIN_SRC shell
-chicken-install -s fmt irregex comparse numbers symbol-utils srfi-19 defstruct
+chicken-install -s fmt irregex comparse numbers symbol-utils srfi-19 defstruct uri-common
 #+END_SRC
 
 Finally the build system used for this project is[[https://ninja-build.org/][ ninja]]. You can [[https://github.com/ninja-build/ninja/releases][download]] it, or
