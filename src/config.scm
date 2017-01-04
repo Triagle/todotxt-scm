@@ -38,6 +38,7 @@
         (cons "cyan" fmt-cyan)
         (cons "yellow" fmt-yellow)
         (cons "magenta" fmt-magenta)
+        (cons "none" dsp)
         (cons "white" fmt-white)
         (cons "black" fmt-black)))
 (define attribute-set
