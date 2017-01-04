@@ -39,15 +39,21 @@
         (cons "yellow" fmt-yellow)
         (cons "magenta" fmt-magenta)
         (cons "white" fmt-white)
-        (cons "black" fmt-black)
-        (cons "bold" fmt-bold)
-        (cons "underline" fmt-underline)))
+        (cons "black" fmt-black)))
+(define attribute-set
+  (list (cons "bold-" fmt-bold)
+        (cons "underline-" fmt-underline)))
 (define colours
-  (apply any-of (map (o char-seq car) colour-set)))
+  (sequence* [(attr (maybe (apply any-of (map (o char-seq car) attribute-set))))
+              (colour (apply any-of (map (o char-seq car) colour-set)))]
+             (let [(colour (assoc-v colour colour-set default: #f))
+                   (attr-v (assoc-v attr attribute-set default: #f))]
+               (cond
+                [(not colour) fail]
+                [(and attr (not (assoc-v attr-v attribute-set))) fail]
+                [#t (result (o (or attr-v dsp) colour))]))))
 (define colour
-  (bind (as-string (preceded-by (is #\:) colours))
-        (lambda (colour)
-          (result (assoc-v colour colour-set)))))
+  (preceded-by (is #\:) colours))
 (define value
   (recursive-parser
    (any-of
