@@ -26,12 +26,6 @@
   ;; It returns a function that toggles a passed task's inbox state to true
   (bind (char-seq "* ")
         (lambda (_) (result (cut update-task <> inbox: #t)))))
-(define whitespace
-  ;; whitespace matches one or more whitespace characters
-  (as-string (one-or-more (in space))))
-(define non-mandatory-whitespace
-  ;; non-mandatory-whitespace matches zero or more whitespace characters
-  (as-string (zero-or-more (in space))))
 (define completed-date
   ;; Completed date matches a date string and then returns a function updates the value of the completed date in a passed task to the parsed results
   (bind date
@@ -112,7 +106,7 @@
 (define todo
   ;; todo describes a section and some whitespace that separates it from the next section.
   ;; e.g "hello " would return a function that adds the text "hello" to the task's text.
-  (sequence* ((t generic-section) (_ non-mandatory-whitespace))
+  (sequence* ((t generic-section) (_ non-mandatory-whitespace+newline))
              (result t)))
 (define task
   ;; The outline definition of task

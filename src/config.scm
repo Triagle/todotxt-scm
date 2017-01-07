@@ -2,15 +2,6 @@
 (declare (uses parse))
 (require-extension comparse fmt fmt-color )
 (use comparse fmt fmt-color utils)
-(define space
-  ;; space aliases the char-set:whitespace variable
-  (char-set-difference char-set:whitespace (->char-set "\r\n")))
-(define space+newline
-  char-set:whitespace)
-(define non-mandatory-whitespace
-  (zero-or-more (in space)))
-(define non-mandatory-whitespace+newline
-  (zero-or-more (in space+newline)))
 (define key-charset
   (char-set-difference char-set:graphic (->char-set "=")))
 (define key

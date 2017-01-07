@@ -15,12 +15,23 @@
     ((2) (<= day (if (leap-year? year) 29 28)))
     ((4 6 9 11) (<= day 30))
     (else (<= day 31))))
+(define space
+  ;; space aliases the char-set:whitespace variable
+  (char-set-difference char-set:whitespace (->char-set "\r\n")))
+(define space+newline
+  char-set:whitespace)
+;; Non mandatory whitespace
+(define non-mandatory-whitespace
+  (zero-or-more (in space)))
+;; Non
+(define non-mandatory-whitespace+newline
+  (zero-or-more (in space+newline)))
+(define whitespace
+  ;; whitespace matches one or more whitespace characters
+  (as-string (one-or-more (in space))))
 (define dash
   ;; A literal "-"
   (char-seq "-"))
-(define space
-  ;; space aliases the char-set:whitespace variable
-  char-set:whitespace)
 (define -space
   ;; -space defines a charset that is the inverse of whitespace (i.e every character but whitespace characters)
   char-set:graphic)
@@ -65,7 +76,7 @@
         (lambda (n)
           (if n
               (result n)
-              fail))))
+             fail))))
 (define (as-symbol parser)
   ;; Return the parser's result as a symbol
   (bind (as-string parser)
