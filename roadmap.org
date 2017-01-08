@@ -28,3 +28,5 @@ A roadmap of the features I wish to have at some point.
 - [ ] Dumb print when piping to other programs.
   - Currently piped output is not stripped of it's colour, which hampers it when
     piping to other programs. Probably shouldn't do that.
+- [ ] Cool logo
+  - The terminal screenshot is fairly unreadable
