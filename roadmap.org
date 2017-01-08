@@ -1,0 +1,30 @@
+#+TITLE: Roadmap
+
+A roadmap of the features I wish to have at some point.
+* Tasks
+- [ ] Blocking tasks
+  - Similar to blocking tasks in taskwarrior, in that certain tasks can block the completion of
+    another
+- [ ] Retain typed input order
+  - Not sure how useful this is? idk but nice to have
+* UI
+- [ ] Tree output
+  - Prints tasks as a tree output like the =tree= command
+    #+BEGIN_EXAMPLE
+      .
+      ├── GTD
+      │   └──  1 weekly review recur:1 +gtd
+      ├── 2 (C) Get milk @shops
+      ├── 3 (D) Take out trash @home
+      └── Todo.txt-scm
+          ├── 4 (A) Blocking tasks +todo.txt-scm
+          └── 5 (B) Tree output +todo.txt-scm
+    #+END_EXAMPLE
+- [ ] Highlighted output
+  - Prints tasks as highlighted output like the original todo.txt client
+  - Something like the terminal output
+    in[[http://todotxt.com/images/todotxt-apps_lrg.png][ this screenshot]]
+* Enhancements
+- [ ] Dumb print when piping to other programs.
+  - Currently piped output is not stripped of it's colour, which hampers it when
+    piping to other programs. Probably shouldn't do that.
