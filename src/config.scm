@@ -46,9 +46,14 @@
                 [#t (result (o (or attr-v dsp) colour))]))))
 (define colour
   (preceded-by (is #\:) colours))
+(define boolean
+  (bind (any-of (char-seq "false") (char-seq "true"))
+        (lambda (res)
+          (result (equal? res "true")))))
 (define value
   (recursive-parser
    (any-of
+    boolean
     duration
     date
     number
