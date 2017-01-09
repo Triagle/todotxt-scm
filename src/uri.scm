@@ -7,7 +7,7 @@
 (define uri-text
   (as-string (one-or-more (none-of* (in (->char-set "/")) item))))
 (define link
-  (sequence* [(_ (char-seq "todo://")) (l (one-or-more (as-decoded (char-seq-split "/")))) (l* (as-decoded (maybe (as-string (one-or-more item)))))]
+  (sequence* [(_ (char-seq "todo://")) (l (one-or-more (as-decoded (char-seq-split "/")))) (l* (maybe (as-decoded (as-string (one-or-more item)))))]
              (result (if l*
                          (append l (list l*))
                          l))))
