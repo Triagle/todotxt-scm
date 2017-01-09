@@ -210,7 +210,7 @@
        (if (task-completed-date task) (cat (date->str (task-completed-date task)) " ") "")
        (if (task-date task) (cat (date->str (task-date task)) " ") "")
        (task-text task)
-       (fmt-join (cut cat " +" <>) (sort (task-project task) string<?))
+       (fmt-join (cut cat " +" <>) (task-project task))
        (fmt-join (cut cat " @" <>) (sort (task-context task) string<?))
        (fmt-join (lambda (kv) (cat " " (symbol->string (car kv)) ":" (property-value->string (cdr kv)))) (task-property task))))
 (define (parse-filename file)

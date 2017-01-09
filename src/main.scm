@@ -1,5 +1,5 @@
 ;; Main CLI interface
-(declare (uses todotxt todotxt-utils config uri))
+(declare (uses todotxt todotxt-utils config uri tree))
 (require-extension fmt fmt-unicode comparse irregex fmt-color numbers symbol-utils srfi-19-support srfi-19-time)
 (use fmt fmt-color fmt-unicode irregex utils comparse numbers symbol-utils srfi-19-support srfi-19-time)
 (define (shell-escape str)
@@ -113,6 +113,15 @@
                                   (colour-days-out configuration (cdr property))
                                   ;; Otherwise leave as is
                                   (assoc-v 'property-colour configuration)) (car property)) ":" (property-value->string (cdr property)))) (task-property task)))))
+
+(define (tree-of-tasks tasks)
+  (foldl (lambda (tree t)
+           (tree-add tree (if (null-list? (task-project t))
+                              '(no-project)
+                              (task-project t)
+                              ) t))
+         '()
+         tasks))
 (define (print-tasks-as-highlighted configuration tasks)
   ;; Print a list of tasks as highlighted output, prepending and padding the task id to each
   (fmt #t (fmt-unicode
@@ -121,6 +130,8 @@
             (fmt-join (cut cat <> nl) (map (cut task-id <>) tasks))
             " "
             (fmt-join (cut cat <> nl) (map (cut print-task-as-highlighted configuration <>) tasks))))))
+(define (print-tasks-as-tree configuration tasks)
+  (walk-tree (tree-of-tasks tasks) (cut print-branch (cut print-task-as-highlighted configuration <>) <> <>)))
 (define (print-tasks-as-table configuration tasks)
   ;; Print tasks in table form, with each column growing as required
   (fmt #t (fmt-unicode
@@ -161,6 +172,7 @@
   ;; return the task printing function associated with the list-style
   (assoc-v list-style
            (list (cons "table"  print-tasks-as-table)
+                 (cons "tree" print-tasks-as-tree)
                  (cons "highlighted"  print-tasks-as-highlighted))
            ;; If the user has specified an unknown task printing scheme, default to the table output
            default: print-tasks-as-table))
