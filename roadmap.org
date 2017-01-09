@@ -20,7 +20,7 @@ A roadmap of the features I wish to have at some point.
           ├── 4 (A) Blocking tasks +todo.txt-scm
           └── 5 (B) Tree output +todo.txt-scm
     #+END_EXAMPLE
-- [ ] Highlighted output
+- [X] Highlighted output
   - Prints tasks as highlighted output like the original todo.txt client
   - Something like the terminal output
     in[[http://todotxt.com/images/todotxt-apps_lrg.png][ this screenshot]]
