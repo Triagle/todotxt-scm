@@ -7,7 +7,12 @@
 ;; Default configuration
 (define configuration (list
                        (cons 'show-command "notify-send \"todo\"")
+                       (cons 'list-style "table")
                        (cons 'todo-dir #f)
+                       (cons 'project-colour fmt-yellow)
+                       (cons 'highlight-next-action #f)
+                       (cons 'context-colour fmt-green)
+                       (cons 'property-colour dsp)
                        (cons 'overdue-colour fmt-red)
                        (cons 'priority-colours (list (list #\A fmt-red)))
                        (cons 'time-colours (list (list (make-duration days: 1) fmt-red)))))
@@ -63,13 +68,16 @@
   ;; Map a list of comma delimited ids to numbers
   ;; e.g "1,2,3" -> '(1 2 3)
   (map string->number (string-split arg ",")))
+(define (colour-for-priority cfg priority)
+  ;; Return the colour associated with the priority
+  (car (assoc-v priority (assoc-v 'priority-colours cfg) default: (list dsp))))
 (define (colour-priority cfg task)
   ;; Colour a task's priority based on it's importance
   ;; The priorities are mapped as follows:
   ;; A -> bolded text
   ;; Everything else -> unchanged
   (let ((priority (task-priority task)))
-    ((car (assoc-v priority (assoc-v 'priority-colours cfg) default: (list dsp))) (or priority ""))))
+    ((colour-for-priority cfg priority) (or priority ""))))
 (define (edit file)
   ;; Open the file in an appropriate editor. By default this is vi (for compatibility reasons), but can be the value of $EDITOR if set
   (let [(editor (or (get-environment-variable "EDITOR") "vi"))]
@@ -80,7 +88,40 @@
   (cat title "\n" (fmt-join (lambda (x)
                               ;; Either take the value of the formatter on item x, or if that returns #f an empty string ""
                               (dsp (or (formatter x) ""))) tasks "\n")))
-(define (print-tasks configuration tasks)
+(define (print-task-as-highlighted configuration task)
+  ;; Print a task like the task->string function, with additional colouring in a similar fashion to the original todo.txt client
+  (dsp (cat
+        ;; Colour the first portion of the task according to it's priority
+        ((colour-for-priority configuration (task-priority task)) (cat (if (task-inbox task)
+                                                                           "* "
+                                                                           "")
+                                                                       (if (task-done task)
+                                                                           "x "
+                                                                           "")
+                                                                       (if (task-priority task)
+                                                                           (cat "(" (task-priority task) ") ")
+                                                                           "")
+                                                                       (if (task-completed-date task) (cat (date->str (task-completed-date task)) " ") "")
+                                                                       (if (task-date task) (cat (date->str (task-date task)) " ") "")
+                                                                       (task-text task)))
+        ;; Colour the project, context, and properties of a task according to their colours set by the user
+        ((assoc-v 'project-colour configuration) (fmt-join (cut cat " +" <>) (sort (task-project task) string<?)))
+        ((assoc-v 'context-colour configuration) (fmt-join (cut cat " @" <>) (sort (task-context task) string<?)))
+        (fmt-join (lambda (property)
+                    (cat " " ((if (and (equal? (car property) 'due) (date? (cdr property)))
+                                  ;; If the property is "due" and the due date is due soon, colour it.
+                                  (colour-days-out configuration (cdr property))
+                                  ;; Otherwise leave as is
+                                  (assoc-v 'property-colour configuration)) (car property)) ":" (property-value->string (cdr property)))) (task-property task)))))
+(define (print-tasks-as-highlighted configuration tasks)
+  ;; Print a list of tasks as highlighted output, prepending and padding the task id to each
+  (fmt #t (fmt-unicode
+           (tabular
+            ""
+            (fmt-join (cut cat <> nl) (map (cut task-id <>) tasks))
+            " "
+            (fmt-join (cut cat <> nl) (map (cut print-task-as-highlighted configuration <>) tasks))))))
+(define (print-tasks-as-table configuration tasks)
   ;; Print tasks in table form, with each column growing as required
   (fmt #t (fmt-unicode
            (tabular
@@ -110,12 +151,23 @@
             ;; Join the properties in the format "key:value,key1:value1"
             ;; The "due" property is treated separately in that it is highlighted depending on the urgency of the due date.
             (column "Properties" (lambda (task)
-                               (fmt-join dsp (map (lambda (property)
-                                                    (cat ((if (and (equal? (car property) 'due) (date? (cdr property)))
-                                                              ;; If the property is "due" and the due date is due soon, colour it.
-                                                              (colour-days-out configuration (cdr property))
-                                                              ;; Otherwise leave as is
-                                                              identity) (car property)) ":" (property-value->string (cdr property)))) (task-property task)) ", ")) tasks) " |"))))
+                                   (fmt-join dsp (map (lambda (property)
+                                                        (cat ((if (and (equal? (car property) 'due) (date? (cdr property)))
+                                                                  ;; If the property is "due" and the due date is due soon, colour it.
+                                                                  (colour-days-out configuration (cdr property))
+                                                                  ;; Otherwise leave as is
+                                                                  identity) (car property)) ":" (property-value->string (cdr property)))) (task-property task)) ", ")) tasks) " |"))))
+(define (style-lookup list-style)
+  ;; return the task printing function associated with the list-style
+  (assoc-v list-style
+           (list (cons "table"  print-tasks-as-table)
+                 (cons "highlighted"  print-tasks-as-highlighted))
+           ;; If the user has specified an unknown task printing scheme, default to the table output
+           default: print-tasks-as-table))
+(define (print-tasks configuration tasks)
+  ;; Use the appropriate user set task printing function to print a list of tasks
+  (let [(formatter (style-lookup (assoc-v 'list-style configuration)))]
+    (formatter configuration tasks)))
 (define-syntax define-cli-interface
   ;; Simple little macro that defines the style of command line interface
   ;; The syntax is simple
@@ -222,7 +274,9 @@
             (let [(tasks (sort (filter (standard-task-filter (string-join action-args " " ) #f) tasks) task-priority<?))]
               (if tasks
                   ;; Pop off the top task (because of the sorting this is also the highest priority), and print it in text form.
-                  (print (task->string (car tasks)))
+                  (if (assoc-v 'highlight-next-action configuration)
+                      (fmt #t (print-task-as-highlighted configuration (car tasks)) nl)
+                      (print (task->string (car tasks))))
                   (print "No tasks to do next."))))
            (("edit") ()
             ;; Open the todo file in $EDITOR
