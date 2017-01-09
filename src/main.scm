@@ -131,7 +131,8 @@
             " "
             (fmt-join (cut cat <> nl) (map (cut print-task-as-highlighted configuration <>) tasks))))))
 (define (print-tasks-as-tree configuration tasks)
-  (walk-tree (tree-of-tasks tasks) (cut print-branch (cut print-task-as-highlighted configuration <>) <> <>)))
+  (walk-tree (tree-of-tasks tasks) (cut print-branch (lambda (task)
+                                                       (cat (task-id task) ". " (print-task-as-highlighted configuration task))) <> <>)))
 (define (print-tasks-as-table configuration tasks)
   ;; Print tasks in table form, with each column growing as required
   (fmt #t (fmt-unicode
