@@ -8,7 +8,7 @@ A roadmap of the features I wish to have at some point.
 - [ ] Retain typed input order
   - Not sure how useful this is? idk but nice to have
 * UI
-- [ ] Tree output
+- [X] Tree output
   - Prints tasks as a tree output like the =tree= command
     #+BEGIN_EXAMPLE
       .

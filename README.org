@@ -25,7 +25,7 @@ format have been added such as:
 - *Next actions*
 - Task *due dates*
 - *Recurring tasks*
-- Revamped *tabular output* and original *highlighted list output*
+- Revamped *tabular output*, original *highlighted list output* and *hierarchical tree based output*
 - Ability to *act on multiple tasks*
 - Task *attachments*
 - Multiple *convenience commands*
