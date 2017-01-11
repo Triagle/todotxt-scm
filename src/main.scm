@@ -270,13 +270,16 @@
          (done-tasks (parse-filename done-file)))
     (if (and tasks done-tasks)
         (define-options args
-          [("list" "ls" "listall") () action-args
+          [("list" "ls" "listall") ((args:make-option (style) (required: "STYLE") "set the listing style")) action-args
            (let ((task-count (+ (length tasks) (if (equal? action "listall") ;; If the user is trying to list done tasks, they should be included in the count.
                                                    (length done-tasks)
                                                    0)))
                  ;; Tasks are filtered using the standard task filter, and then sorted by their priority
                  (tasks (sort (filter (standard-task-filter (string-join action-args " ") (equal? action "listall"))
-                                      (append tasks done-tasks)) task-priority<?)))
+                                      (append tasks done-tasks)) task-priority<?))
+                 (configuration (if (alist-ref 'style options)
+                                    (cons (cons 'list-style (alist-ref 'style options)) configuration)
+                                    configuration)))
              (print-tasks configuration tasks)
              (fmt #t
                   "---" nl
@@ -293,9 +296,12 @@
                  (print "No tasks to do next.")))]
           [("edit") () action-args
            (edit todo-file)]
-          (("inbox" "in") () action-args
+          (("inbox" "in") ((args:make-option (style) (required: "STYLE") "set the listing style")) action-args
            ;; Similar to ls and next, but the standard task filter is replaced with one that simply filters by tasks that are marked as inbox items
-           (let [(tasks (filter task-inbox tasks))]
+           (let [(tasks (filter task-inbox tasks))
+                 (configuration (if (alist-ref 'style options)
+                                    (cons (cons 'list-style (alist-ref 'style options)) configuration)
+                                    configuration))]
              (print-tasks configuration tasks)))
           (("refile") () (id)
            ;; Overwrite the existing todo file, where the task at id is changed such that it no longer has an inbox status
