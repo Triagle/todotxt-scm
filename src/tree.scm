@@ -42,8 +42,15 @@
   (list->string (make-list len elt)))
 (define (print-branch accessor ident node)
   (fmt #t
+       (if (= ident 0)
+           nl
+           "")
        (make-string-with ident #\space)
-       "└┐ "
+       (if (= ident 0)
+           "─"
+           "└"
+           )
+       "┐ "
        (node-key node)
        nl
        (if (list? (node-value node))
