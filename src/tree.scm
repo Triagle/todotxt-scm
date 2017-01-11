@@ -43,9 +43,9 @@
 (define (print-branch accessor ident node)
   (fmt #t
        (make-string-with ident #\space)
-       "-| "
+       "└┐ "
        (node-key node)
        nl
        (if (list? (node-value node))
-           (fmt-join (cut cat (make-string-with (+ ident 1) #\space) "+ " <> nl) (map accessor (node-value node)))
+           (fmt-join (cut cat (make-string-with (+ ident 1) #\space) "├ " <> nl) (map accessor (node-value node)))
            "")))
