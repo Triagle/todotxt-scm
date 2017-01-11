@@ -1,7 +1,7 @@
 ;; Main CLI interface
 (declare (uses todotxt todotxt-utils config uri tree))
-(require-extension fmt fmt-unicode comparse irregex fmt-color numbers symbol-utils srfi-19-support srfi-19-time)
-(use fmt fmt-color fmt-unicode irregex utils comparse numbers symbol-utils srfi-19-support srfi-19-time)
+(require-extension args fmt fmt-unicode comparse irregex fmt-color numbers symbol-utils srfi-19-support srfi-19-time bindings)
+(use args fmt fmt-color fmt-unicode irregex utils comparse numbers symbol-utils srfi-19-support srfi-19-time (prefix bindings b:))
 (define (shell-escape str)
   (irregex-replace/all "'" str "'\''"))
 ;; Default configuration
@@ -181,37 +181,42 @@
   ;; Use the appropriate user set task printing function to print a list of tasks
   (let [(formatter (style-lookup (assoc-v 'list-style configuration)))]
     (formatter configuration tasks)))
-(define-syntax define-cli-interface
-  ;; Simple little macro that defines the style of command line interface
-  ;; The syntax is simple
-
-  ;; (define-cli-interface <passed-command-line-arguments>
-  ;;     ((("list") () (print "listing"))))
-  ;; Every subcommand (todo "ls", todo "add", etc) has three parts
-  ;; The action-strings: ("list"). These are the aliases for the subcommand
-  ;; The argument-names: (). A simple list of the names of the arguments (an empty list meaning any number of arguments is accepted).
-  ;; The body: (print "listing"). The body of the subcommand.
-  (syntax-rules ()
-    ((_ args (((action-strings* ...) (argument-names* ...) . body)  actions* ...))
-     ;; If the first user passed cli argument is within the argument-strings
-     (if (member (car args) '(action-strings* ...))
-         (cond
-          ;; If the length of the args is greater than or equal to the length of required subcommand arguments
-          [(>= (length (cdr args)) (length '(argument-names* ...)))
-           ;; Execute the subcommand
-           (begin . body)]
-          [#t
-           ;; Otherwise print the generated usage string for this subcommand
-           (fmt #t "Usage: todo "
-                ;; Present the possible aliases of a given action separated by '/' (e.g "pri/new-priority")
-                (fmt-join dsp '(action-strings* ...) "/")
-                " "
-                ;; Present the arguments to the subcommand (e.g "[id] [new-priority]")
-                (fmt-join dsp (map (o (cut cat "[" <> "]")) '(argument-names* ...)) " ")
-                nl)])
-         (define-cli-interface args (actions* ...))))
-    ;; Base case, if the user has specified an action that is unknown
-    ((_ args ()) (fmt #t (fmt-unicode (fmt-red (fmt-bold "Unrecognized action: ")) (car args) "." nl)))))
+(define-syntax test
+  (ir-macro-transformer
+   (lambda (expr inject compare)
+     `(let [(,(cadr expr) ,(caddr expr))]
+        ,@(cdddr expr)
+        )
+     )
+   ))
+(define-syntax define-opt
+  (ir-macro-transformer
+   (lambda (expr inject compare)
+     (let* [(expr (cdr expr))
+            (argv (car expr))
+            (expr (cdr expr))
+            (action-names (car expr))
+            (expr (cdr expr))
+            (action-opts (cons '(args:make-option (help) #:none "See this help message") (car expr)))
+            (expr (cdr expr))
+            (action-arguments (car expr))
+            (body (cdr expr))]
+       `(receive (,(inject 'options) ,(inject 'operands)) (args:parse (cdr ,argv) (list ,@action-opts) #:unrecognized-proc args:ignore-unrecognized-options)
+          (cond
+           [(not (member (car ,argv) ',action-names)) #f]
+           [(alist-ref 'help ,(inject 'options)) (print (args:usage (list ,@action-opts)))]
+           [(and (member (car ,argv) ',action-names) ((b:bindable? ,action-arguments) ,(inject 'operands)))
+            (b:bind ,action-arguments ,(inject 'operands)
+                  ,@body)]
+           [#t (print "Invalid argument count for " (car ,argv))]))))))
+(define-syntax define-options
+  (ir-macro-transformer
+   (lambda (e i c)
+     (let* [(e (cdr e))
+            (argv (car e))
+            (forms (map (lambda (form) (append (list (i 'define-opt) argv) form)) (cdr e)))]
+       `(begin
+         ,@forms)))))
 (define (task-at tasks id)
   (find (lambda (task) (= (task-id task) id)) tasks))
 (define (with-task-at-id tasks id thunk)
@@ -262,228 +267,214 @@
          ;; Path representation of the done.txt file
          (done-file (string-append todo-dir "done.txt"))
          ;; The parsed done.txt file
-         (done-tasks (parse-filename done-file))
-         ;; The tail (or cdr) of the arguments is always the arguments of a given action
-         (action-args (cdr args)))
+         (done-tasks (parse-filename done-file)))
     (if (and tasks done-tasks)
-        (define-cli-interface args
-          ((("list" "ls" "listall") ()
-            ;; List tasks in todo file, optionally including done tasks as well.
-            (let ((task-count (+ (length tasks) (if (equal? action "listall") ;; If the user is trying to list done tasks, they should be included in the count.
-                                                    (length done-tasks)
-                                                    0)))
-                  ;; Tasks are filtered using the standard task filter, and then sorted by their priority
-                  (tasks (sort (filter (standard-task-filter (string-join action-args " ") (equal? action "listall"))
-                                       (append tasks done-tasks)) task-priority<?)))
-              (print-tasks configuration tasks)
-              (fmt #t
-                   "---" nl
-                   (length tasks) " out of " task-count " task" (if (= task-count 1)
-                                                                    ""
-                                                                    "s") " shown." nl)))
-           (("next") ()
-            ;; Display the next most important task (by priority) in the task list
-            ;; Again we filter by the passed arguments and sort by priority
-            (let [(tasks (sort (filter (standard-task-filter (string-join action-args " " ) #f) tasks) task-priority<?))]
-              (if tasks
-                  ;; Pop off the top task (because of the sorting this is also the highest priority), and print it in text form.
-                  (if (assoc-v 'highlight-next-action configuration)
-                      (fmt #t (print-task-as-highlighted configuration (car tasks)) nl)
-                      (print (task->string (car tasks))))
-                  (print "No tasks to do next."))))
-           (("edit") ()
-            ;; Open the todo file in $EDITOR
-            (edit todo-file))
-           (("inbox" "in") ()
-            ;; Similar to ls and next, but the standard task filter is replaced with one that simply filters by tasks that are marked as inbox items
-            (let [(tasks (filter task-inbox tasks))]
-              (print-tasks configuration tasks)))
-           (("refile") (id)
-            ;; Overwrite the existing todo file, where the task at id is changed such that it no longer has an inbox status
-            (let [(id (string->number (car action-args)))]
-              (if id
-                  (overwrite-file todo-file (format-tasks-as-file (with-task-at-id tasks id
-                                                                                   (cut update-task <> inbox: #f))))
-                  (invalid-id-err (car action-args)))))
-           (("listproj" "lsprj") ()
-            ;; List all the projects that are present in any task on the todo list
-            (print-application (list-unique-properties tasks task-project) identity "\n"))
-
-           (("listcon" "lsc") ()
-            ;; List all the contexts that are present in any task on the todo list
-            (print-application (list-unique-properties tasks task-context) identity "\n"))
-
-           (("rm" "del") (ids)
-            ;; Delete id or ids in todo list, overwriting the original todo file
-            (let ((ids (as-ids (car action-args))))
-              (if (valid-ids ids)
-                  (overwrite-file todo-file (format-tasks-as-file
-                                             (remove (lambda (task)
-                                                       (member (task-id task) ids)) tasks)))
-                  (invalid-id-err (car action-args)))))
-           (("replace") (id todo)
-            ;; Replace the todo at id with new text todo, overwriting the original todo file. Equivalent to todo rm and then todo add.
-            (let ((id (string->number (car action-args)))
-                  (todo (cdr action-args)))
-              (if id
-                  (overwrite-file todo-file (fmt #f
-                                                 (dsp
-                                                  (format-tasks-as-file
-                                                   ;; remove the original todo first.
-                                                   (remove (lambda (task)
-                                                             (= (task-id task) id)) tasks)))
-                                                 ;; Append to the end of the file.
-                                                 (string-join todo " ")
-                                                 nl))
-                  (invalid-id-err (car action-args)))))
-           (("property-modify" "pmod" "pm") (id key value)
-            (let ((id (string->number (car action-args)))
-                  (key (string->symbol (cadr action-args)))
-                  (value (caddr action-args)))
-              (cond
-               [(not (valid-property-value value)) (err "Invalid property value" value)]
-               [(not id) (invalid-id-err (car action-args))]
-               [#t (overwrite-file todo-file (format-tasks-as-file (with-task-at-id tasks id
-                                                                                    (lambda (t)
-                                                                                      (update-task t
-                                                                                                   ;; the property is first removed from the property alist, and then consed to the front.
-                                                                                                   property: (cons (cons key value) (rm-prop key (task-property t))))))))])))
-           (("property-remove" "prm" "pr") (id key)
-            (let ((id (string->number (car action-args)))
-                  (key (string->symbol (cadr action-args))))
-              (if id
-                  ;; Remove an property of a todo
-                  (overwrite-file todo-file (format-tasks-as-file (with-task-at-id tasks id
+        (define-options args
+          [("list" "ls" "listall") () action-args
+           (let ((task-count (+ (length tasks) (if (equal? action "listall") ;; If the user is trying to list done tasks, they should be included in the count.
+                                                   (length done-tasks)
+                                                   0)))
+                 ;; Tasks are filtered using the standard task filter, and then sorted by their priority
+                 (tasks (sort (filter (standard-task-filter (string-join action-args " ") (equal? action "listall"))
+                                      (append tasks done-tasks)) task-priority<?)))
+             (print-tasks configuration tasks)
+             (fmt #t
+                  "---" nl
+                  (length tasks) " out of " task-count " task" (if (= task-count 1)
+                                                                   ""
+                                                                   "s") " shown." nl))]
+          [("next") () action-args
+           (let [(tasks (sort (filter (standard-task-filter (string-join action-args " " ) #f) tasks) task-priority<?))]
+             (if tasks
+                 ;; Pop off the top task (because of the sorting this is also the highest priority), and print it in text form.
+                 (if (assoc-v 'highlight-next-action configuration)
+                     (fmt #t (print-task-as-highlighted configuration (car tasks)) nl)
+                     (print (task->string (car tasks))))
+                 (print "No tasks to do next.")))]
+          [("edit") () action-args
+           (edit todo-file)]
+          (("inbox" "in") () action-args
+           ;; Similar to ls and next, but the standard task filter is replaced with one that simply filters by tasks that are marked as inbox items
+           (let [(tasks (filter task-inbox tasks))]
+             (print-tasks configuration tasks)))
+          (("refile") () (id)
+           ;; Overwrite the existing todo file, where the task at id is changed such that it no longer has an inbox status
+           (let [(id (string->number id))]
+             (if id
+                 (overwrite-file todo-file (format-tasks-as-file (with-task-at-id tasks id
+                                                                                  (cut update-task <> inbox: #f))))
+                 (invalid-id-err id))))
+          (("listproj" "lsprj") () _
+           ;; List all the projects that are present in any task on the todo list
+           (print-application (list-unique-properties tasks task-project) identity "\n"))
+          (("listcon" "lsc") () _
+           ;; List all the contexts that are present in any task on the todo list
+           (print-application (list-unique-properties tasks task-context) identity "\n"))
+          (("rm" "del") () (ids)
+           ;; Delete id or ids in todo list, overwriting the original todo file
+           (let ((ids (as-ids ids)))
+             (if (valid-ids ids)
+                 (overwrite-file todo-file (format-tasks-as-file
+                                            (remove (lambda (task)
+                                                      (member (task-id task) ids)) tasks)))
+                 (invalid-id-err ids))))
+          (("replace") () (id . todo)
+           ;; Replace the todo at id with new text todo, overwriting the original todo file. Equivalent to todo rm and then todo add.
+           (let ((id (string->number id)))
+             (if id
+                 (overwrite-file todo-file (fmt #f
+                                                (dsp
+                                                 (format-tasks-as-file
+                                                  ;; remove the original todo first.
+                                                  (remove (lambda (task)
+                                                            (= (task-id task) id)) tasks)))
+                                                ;; Append to the end of the file.
+                                                (string-join todo " ")
+                                                nl))
+                 (invalid-id-err id))))
+          (("property-modify" "pmod" "pm") () (id key value)
+           (let ((id (string->number id))
+                 (key (string->symbol key)))
+             (cond
+              [(not (valid-property-value value)) (err "Invalid property value" value)]
+              [(not id) (invalid-id-err id)]
+              [#t (overwrite-file todo-file (format-tasks-as-file (with-task-at-id tasks id
                                                                                    (lambda (t)
                                                                                      (update-task t
-                                                                                                  property: (rm-prop key (task-property t)))))))
-                  (invalid-id-err (car action-args)))))
-           (("add" "a") ()
-            ;; Simple append text passed as the arguments to a file.
-            (write-to-a-file todo-file (string-join action-args " ")))
-           (("capture" "c") ()
-            ;; Capture a todo as an inbox item directly
-            (write-to-a-file todo-file (string-append "* " (string-join action-args " "))))
-           (("cat" "cat-all") ()
-            ;; Print the raw text contents of either the todo.txt file, or done.txt file
-            (if (equal? action "cat")
-                (print (read-all todo-file))
-                (print (read-all todo-file) "\n" (read-all done-file))))
-           (("open" "o") (id)
-            ;; Open the attachments of a todo at id, prompting for file selection if necessary
-            (let* [(id (string->number (car action-args)))
-                   ;; Get selected task
-                   (selected-task (find (lambda (t) (equal? id (task-id t))) tasks))
-                   ;; The attachments are stored in the attach property of the task
-                   (attachments (if selected-task (assoc-v 'attach (task-property selected-task)) #f))]
-              (cond
-               ;; Invalid id or id is out of bounds
-               [(or (not id) (not selected-task)) (invalid-id-err (car action-args))]
-               ;; Attachments is a garbage value, i.e not a list of strings or not a string
-               [(not (or (string? attachments) (and (list? attachments) (every string? attachments)))) (fmt #t (fmt-bold (fmt-red "Invalid attachment(s): ")) (property-value->string attachments) nl)]
-               ;; If only one attachment, assume the user intends to open it and don't bug them
-               [(string? attachments) (open attachments)]
-               ;; No attachments, therefore just print that none were found.
-               [(null-list? attachments) (fmt #t "No attachments found for the selected task." nl)]
-               [#t (let [(attachment-pair
-                          ;; Pair the attachments with a number to represent them for user selection
-                          ;; E.g A list '(file1.txt file2.txt) would become '((1 file1.txt) (2 file2.txt))
-                          (zip (map (cut + 1 <>) (iota (length attachments))) attachments))]
-                     (fmt #t (fmt-join (lambda (attachment)
-                                         ;; Convert the now paired attachments into a string form, e.g '(1 file1.txt) -> "1. file1.txt"
-                                         (dsp (string-append (->string (car attachment)) ". " (cadr attachment)))) attachment-pair "\n")
-                          nl
-                          "Select attachment [1-" (length attachments) "]: ")
-                     (let [(in (string->number (read-line)))]
-                       ;; Open the attachment at id in, read from stdin
-                       (open (cadr (find (lambda (attachment) (equal? (car attachment) in)) attachment-pair)))))])))
-           (("done" "do" "mark" "complete" "tick") (ids)
-            (let ((ids (as-ids (car action-args))))
-              (if (valid-ids ids)
-                  (begin
-                    ;; Append marked tasks to done file
-                    (write-to-a-file done-file (format-tasks-as-file
-                                                (remove
-                                                 ;; Remove all tasks that aren't done, thus isolated the newly updated tasks
-                                                 (complement task-done)
-                                                 ;; Update tasklist, marking the selected ids as done.
-                                                 (with-tasks-at-ids tasks ids (cut update-task <> done: #t)))))
-                    ;; Overwrite the original todo file, removing the newly marked todo items unless a recur property prevents them
-                    (overwrite-file todo-file (format-tasks-as-file
-                                               ;; Schedule a new todo item in the future for all todos at ids that have a recur property
-                                               (with-tasks-at-ids
-                                                (remove (lambda (task)
-                                                          ;; Remove only task from the todo list only if
-                                                          ;; That task is one of the selected tasks from the user
-                                                          ;; That task also does not have a recur property.
-                                                          (and (member (task-id task) ids)
-                                                               (not (assoc 'recur (task-property task))))) tasks)
-                                                ids
-                                                (lambda (t)
-                                                  ;; If the task has a due date and a recur property
-                                                  (if (and (assoc 'recur (task-property t)) (assoc 'due (task-property t)) (date? (assoc-v 'due (task-property t))) (time? (assoc-v 'recur (task-property t))))
-                                                      ;; Add the value of the recur property to the due date of the task and return that new task
-                                                      (begin
-                                                        (fmt #t (fmt-unicode (fmt-bold "Task is recurrent, adding another in the future") nl) )
-                                                        (task-due-add t (assoc-v 'recur (task-property t))))
-                                                      ;; Otherwise just return the same task untouched
-                                                      t))))))
-                  (invalid-id-err (car action-args)))))
-           (("bump" "promote") (ids)
-            (let ((ids (as-ids (car action-args))))
-              (if (valid-ids ids)
-                  ;; Cycle the priority of the tasks upwards with ids in ids, giving them a priority of A if they don't already have one
-                  (overwrite-file todo-file (format-tasks-as-file (with-tasks-at-ids tasks ids (cut cycle-priority <> - #\A))))
-                  (invalid-id-err (car action-args)))))
+                                                                                                  ;; the property is first removed from the property alist, and then consed to the front.
+                                                                                                  property: (cons (cons key value) (rm-prop key (task-property t))))))))])))
+          (("property-remove" "prm" "pr") () (id key)
+           (let ((id (string->number id))
+                 (key (string->symbol key)))
+             (if id
+                 ;; Remove an property of a todo
+                 (overwrite-file todo-file (format-tasks-as-file (with-task-at-id tasks id
+                                                                                  (lambda (t)
+                                                                                    (update-task t
+                                                                                                 property: (rm-prop key (task-property t)))))))
+                 (invalid-id-err id))))
 
-           (("curb" "demote") (ids)
-            (let ((ids (as-ids (car action-args))))
-              (if (valid-ids ids)
-                  ;; Cycle the priority of the tasks downwards with ids in ids, giving them a priority of Z if they don't already have one
-                  (overwrite-file todo-file (format-tasks-as-file (with-tasks-at-ids tasks ids (cut cycle-priority <> + #\Z))))
-                  (invalid-id-err (car action-args)))))
-           (("add-context" "ac") (ids context)
-            (let ((ids (as-ids (car action-args)))
-                  (context (cadr action-args)))
-              (if (valid-ids ids)
-                  ;; Add a context to a todo item
-                  (overwrite-file todo-file (format-tasks-as-file (with-tasks-at-ids tasks ids
-                                                                                     (cut add-to-todo <> 'context task-context context))))
-                  (invalid-id-err (car action-args)))))
-           (("rm-context" "rc") (ids context)
-            (let ((ids (as-ids (car action-args)))
-                  (context (cadr action-args)))
-              (if (valid-ids ids)
-                  ;; Remove a context to a todo item
-                  (overwrite-file todo-file (format-tasks-as-file (with-tasks-at-ids tasks ids
-                                                                                     (cut remove-from-todo <> 'context task-context context))))
-                  (invalid-id-err (car action-args)))))
-           (("add-project" "ap") (ids project)
-            (let ((ids (as-ids (car action-args)))
-                  (project (cadr action-args)))
+          (("add" "a") () action-args
+           ;; Simple append text passed as the arguments to a file.
+           (write-to-a-file todo-file (string-join action-args " ")))
+          (("capture" "c") () action-args
+           ;; Capture a todo as an inbox item directly
+           (write-to-a-file todo-file (string-append "* " (string-join action-args " "))))
+
+          (("cat" "cat-all") () _
+           ;; Print the raw text contents of either the todo.txt file, or done.txt file
+           (if (equal? action "cat")
+               (print (read-all todo-file))
+               (print (read-all todo-file) "\n" (read-all done-file))))
+          (("open" "o") () (id)
+           ;; Open the attachments of a todo at id, prompting for file selection if necessary
+           (let* [(id (string->number id))
+                  ;; Get selected task
+                  (selected-task (find (lambda (t) (equal? id (task-id t))) tasks))
+                  ;; The attachments are stored in the attach property of the task
+                  (attachments (if selected-task (assoc-v 'attach (task-property selected-task)) #f))]
+             (cond
+              ;; Invalid id or id is out of bounds
+              [(or (not id) (not selected-task)) (invalid-id-err (car action-args))]
+              ;; Attachments is a garbage value, i.e not a list of strings or not a string
+              [(not (or (string? attachments) (and (list? attachments) (every string? attachments)))) (fmt #t (fmt-bold (fmt-red "Invalid attachment(s): ")) (property-value->string attachments) nl)]
+              ;; If only one attachment, assume the user intends to open it and don't bug them
+              [(string? attachments) (open attachments)]
+              ;; No attachments, therefore just print that none were found.
+              [(null-list? attachments) (fmt #t "No attachments found for the selected task." nl)]
+              [#t (let [(attachment-pair
+                         ;; Pair the attachments with a number to represent them for user selection
+                         ;; E.g A list '(file1.txt file2.txt) would become '((1 file1.txt) (2 file2.txt))
+                         (zip (map (cut + 1 <>) (iota (length attachments))) attachments))]
+                    (fmt #t (fmt-join (lambda (attachment)
+                                        ;; Convert the now paired attachments into a string form, e.g '(1 file1.txt) -> "1. file1.txt"
+                                        (dsp (string-append (->string (car attachment)) ". " (cadr attachment)))) attachment-pair "\n")
+                         nl
+                         "Select attachment [1-" (length attachments) "]: ")
+                    (let [(in (string->number (read-line)))]
+                      ;; Open the attachment at id in, read from stdin
+                      (open (cadr (find (lambda (attachment) (equal? (car attachment) in)) attachment-pair)))))])))
+          (("done" "do" "mark" "complete" "tick") () (ids)
+           (let ((ids (as-ids ids)))
+             (if (valid-ids ids)
+                 (begin
+                   ;; Append marked tasks to done file
+                   (write-to-a-file done-file (format-tasks-as-file
+                                               (remove
+                                                ;; Remove all tasks that aren't done, thus isolated the newly updated tasks
+                                                (complement task-done)
+                                                ;; Update tasklist, marking the selected ids as done.
+                                                (with-tasks-at-ids tasks ids (cut update-task <> done: #t)))))
+                   ;; Overwrite the original todo file, removing the newly marked todo items unless a recur property prevents them
+                   (overwrite-file todo-file (format-tasks-as-file
+                                              ;; Schedule a new todo item in the future for all todos at ids that have a recur property
+                                              (with-tasks-at-ids
+                                               (remove (lambda (task)
+                                                         ;; Remove only task from the todo list only if
+                                                         ;; That task is one of the selected tasks from the user
+                                                         ;; That task also does not have a recur property.
+                                                         (and (member (task-id task) ids)
+                                                              (not (assoc 'recur (task-property task))))) tasks)
+                                               ids
+                                               (lambda (t)
+                                                 ;; If the task has a due date and a recur property
+                                                 (if (and (assoc 'recur (task-property t)) (assoc 'due (task-property t)) (date? (assoc-v 'due (task-property t))) (time? (assoc-v 'recur (task-property t))))
+                                                     ;; Add the value of the recur property to the due date of the task and return that new task
+                                                     (begin
+                                                       (fmt #t (fmt-unicode (fmt-bold "Task is recurrent, adding another in the future") nl) )
+                                                       (task-due-add t (assoc-v 'recur (task-property t))))
+                                                     ;; Otherwise just return the same task untouched
+                                                     t))))))
+                 (invalid-id-err ids))))
+          (("bump" "promote") () (ids)
+           (let ((ids (as-ids ids)))
+             (if (valid-ids ids)
+                 ;; Cycle the priority of the tasks upwards with ids in ids, giving them a priority of A if they don't already have one
+                 (overwrite-file todo-file (format-tasks-as-file (with-tasks-at-ids tasks ids (cut cycle-priority <> - #\A))))
+                 (invalid-id-err ids))))
+          (("curb" "demote") () (ids)
+           (let ((ids (as-ids ids)))
+             (if (valid-ids ids)
+                 ;; Cycle the priority of the tasks downwards with ids in ids, giving them a priority of Z if they don't already have one
+                 (overwrite-file todo-file (format-tasks-as-file (with-tasks-at-ids tasks ids (cut cycle-priority <> + #\Z))))
+                 (invalid-id-err ids))))
+          (("add-context" "ac") () (ids context)
+           (let ((ids (as-ids ids)))
+             (if (valid-ids ids)
+                 ;; Add a context to a todo item
+                 (overwrite-file todo-file (format-tasks-as-file (with-tasks-at-ids tasks ids
+                                                                                    (cut add-to-todo <> 'context task-context context))))
+                 (invalid-id-err (car action-args)))))
+          (("rm-context" "rc") () (ids context)
+           (let ((ids (as-ids ids)))
+             (if (valid-ids ids)
+                 ;; Remove a context to a todo item
+                 (overwrite-file todo-file (format-tasks-as-file (with-tasks-at-ids tasks ids
+                                                                                    (cut remove-from-todo <> 'context task-context context))))
+                 (invalid-id-err (car action-args)))))
+
+           (("add-project" "ap") () (ids project)
+            (let ((ids (as-ids ids)))
               (if (valid-ids ids)
                   ;; Add a project to a todo item
                   (overwrite-file todo-file (format-tasks-as-file (with-tasks-at-ids tasks ids
                                                                                      (cut add-to-todo <> 'project task-project project))))
                   (invalid-id-err (car action-args)))))
-           (("show") (id)
-
-            (system (string-append (assoc-v 'show-command configuration) " '" (shell-escape (task->string (task-at tasks (string->number (car action-args))))) "'")))
-           (("rm-project" "rp") (ids project)
-            (let ((ids (as-ids (car action-args)))
-                  (project (cadr action-args)))
+           (("show") () (id)
+            (system (string-append (assoc-v 'show-command configuration) " '" (shell-escape (task->string (task-at tasks (string->number id)))) "'")))
+           (("rm-project" "rp") () (ids project)
+            (let ((ids (as-ids ids)))
               (if (valid-ids ids)
                   ;; Remove a project to a todo item
                   (overwrite-file todo-file (format-tasks-as-file (with-tasks-at-ids tasks ids
                                                                                      (cut remove-from-todo <> 'project task-project project))))
                   (invalid-id-err (car action-args)))))
-           (("log") ()
+           (("log") () action-args
             ;; Add a todo to the done file, marked as done (logging that you've done something so to speak).
             (write-to-a-file done-file (string-append "x " (string-join action-args " "))))
-           (("pri") (id new-priority)
+           (("pri") () (id new-priority)
             ;; Set the priority of a todo item
-            (let ((id (string->number (car action-args)))
-                  (new-priority (cadr action-args)))
+            (let ((id (string->number id)))
               (if id
                   (if (or (equal? new-priority "-") (irregex-match "[A-Z]" (format #f "~a" new-priority)))
                       ;; Update the priority of the todo item
@@ -494,9 +485,24 @@
                                                                                                                          new-priority)))))
                       ;; Let the user know that it is an invalid priority
                       (err "Invalid Priority" new-priority))
-                  (invalid-id-err (car action-args)))))))
+                  (invalid-id-err (car action-args)))))
+
+
+
+          )
+
+
         (err "Todo file invalid: " (cat "Todo file at " todo-dir " is missing, damaged, or otherwise unreadable.")))))
 (let [(args (argv))]
   (cond
    [(> (length args) 1) (run (or (parse link (string-join (cdr args) " ")) (cdr args)))]
    [(fmt #t (dsp "todo [action-name] [action-args]") nl)]))
+(define-options '("test-subcommand" "--test=hello" "id" "hello" "--test=l")
+  [("list")
+   ()
+   (id . test)
+   test]
+  [("test-subcommand")
+   ((args:make-option (test) (optional: "test") "test argument"))
+   (id . rest)
+   id])
