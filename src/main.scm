@@ -139,9 +139,9 @@
            (tabular
             "| "
             ;; ID column consists of either the task id (e.g 1) or an 'x' if that task is done
-            (column "ID" (lambda (x) (if (task-done x)
-                                         "x"
-                                         (num (task-id x)))) tasks)
+            (column "ID" (lambda (x) (cat (if (task-done x)
+                                              "x "
+                                              "") (num (task-id x)))) tasks)
             " | "
             ;; See colour-priority for how this is formatted
             (column "Priority" (cut colour-priority configuration <>) tasks)
