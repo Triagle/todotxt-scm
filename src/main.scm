@@ -477,7 +477,7 @@
                   (if (or (equal? new-priority "-") (irregex-match "[A-Z]" (format #f "~a" new-priority)))
                       ;; Update the priority of the todo item
                       ;; New priority can either be an uppercase character, or "-" which resets the priority.
-                      (overwrite-file todo-file (format-tasks-as-file (with-task-at-ids tasks ids
+                      (overwrite-file todo-file (format-tasks-as-file (with-tasks-at-ids tasks ids
                                                                                        (cut update-task <> priority: (if (equal? new-priority "-")
                                                                                                                          #f ;; false equates to no priority internally
                                                                                                                          new-priority)))))
