@@ -30,7 +30,7 @@
   ;; Add value to the beginning of a list which is the property of task, using property-fn to retrieve it's original value
   (update-task task
                (symbol->keyword property)
-               (cons value (property-fn task))))
+               (append (property-fn task) (list value))))
 (define (remove-from-todo task property property-fn value)
   ;; Remove a value from a list which is the property of task, using property-fn to retrieve it's original value
   (update-task task
