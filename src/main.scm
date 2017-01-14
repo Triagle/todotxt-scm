@@ -373,7 +373,7 @@
                   (attachments (if selected-task (assoc-v 'attach (task-property selected-task)) #f))]
              (cond
               ;; Invalid id or id is out of bounds
-              [(or (not id) (not selected-task)) (invalid-id-err (car action-args))]
+              [(or (not id) (not selected-task)) (invalid-id-err id)]
               ;; Attachments is a garbage value, i.e not a list of strings or not a string
               [(not (or (string? attachments) (and (list? attachments) (every string? attachments)))) (fmt #t (fmt-bold (fmt-red "Invalid attachment(s): ")) (property-value->string attachments) nl)]
               ;; If only one attachment, assume the user intends to open it and don't bug them
@@ -442,14 +442,14 @@
                  ;; Add a context to a todo item
                  (overwrite-file todo-file (format-tasks-as-file (with-tasks-at-ids tasks ids
                                                                                     (cut add-to-todo <> 'context task-context context))))
-                 (invalid-id-err (car action-args)))))
+                 (invalid-id-err ids))))
           (("rm-context" "rc") () (ids context)
            (let ((ids (as-ids ids)))
              (if (valid-ids ids)
                  ;; Remove a context to a todo item
                  (overwrite-file todo-file (format-tasks-as-file (with-tasks-at-ids tasks ids
                                                                                     (cut remove-from-todo <> 'context task-context context))))
-                 (invalid-id-err (car action-args)))))
+                 (invalid-id-err ids))))
 
            (("add-project" "ap") () (ids project)
             (let ((ids (as-ids ids)))
@@ -457,7 +457,7 @@
                   ;; Add a project to a todo item
                   (overwrite-file todo-file (format-tasks-as-file (with-tasks-at-ids tasks ids
                                                                                      (cut add-to-todo <> 'project task-project project))))
-                  (invalid-id-err (car action-args)))))
+                  (invalid-id-err ids))))
            (("show") () (id)
             (system (string-append (assoc-v 'show-command configuration) " '" (shell-escape (task->string (task-at tasks (string->number id)))) "'")))
            (("rm-project" "rp") () (ids project)
@@ -466,24 +466,24 @@
                   ;; Remove a project to a todo item
                   (overwrite-file todo-file (format-tasks-as-file (with-tasks-at-ids tasks ids
                                                                                      (cut remove-from-todo <> 'project task-project project))))
-                  (invalid-id-err (car action-args)))))
+                  (invalid-id-err ids))))
            (("log") () action-args
             ;; Add a todo to the done file, marked as done (logging that you've done something so to speak).
             (write-to-a-file done-file (string-append "x " (string-join action-args " "))))
-           (("pri") () (id new-priority)
+           (("pri") () (ids new-priority)
             ;; Set the priority of a todo item
-            (let ((id (string->number id)))
-              (if id
+            (let ((ids (as-ids ids)))
+              (if (valid-ids ids)
                   (if (or (equal? new-priority "-") (irregex-match "[A-Z]" (format #f "~a" new-priority)))
                       ;; Update the priority of the todo item
                       ;; New priority can either be an uppercase character, or "-" which resets the priority.
-                      (overwrite-file todo-file (format-tasks-as-file (with-task-at-id tasks id
+                      (overwrite-file todo-file (format-tasks-as-file (with-task-at-ids tasks ids
                                                                                        (cut update-task <> priority: (if (equal? new-priority "-")
                                                                                                                          #f ;; false equates to no priority internally
                                                                                                                          new-priority)))))
                       ;; Let the user know that it is an invalid priority
                       (err "Invalid Priority" new-priority))
-                  (invalid-id-err (car action-args))))))
+                  (invalid-id-err ids)))))
         (err "Todo file invalid: " (cat "Todo file at " todo-dir " is missing, damaged, or otherwise unreadable.")))))
 (let [(args (argv))]
   (cond
