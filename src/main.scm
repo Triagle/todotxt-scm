@@ -181,14 +181,6 @@
   ;; Use the appropriate user set task printing function to print a list of tasks
   (let [(formatter (style-lookup (assoc-v 'list-style configuration)))]
     (formatter configuration tasks)))
-(define-syntax test
-  (ir-macro-transformer
-   (lambda (expr inject compare)
-     `(let [(,(cadr expr) ,(caddr expr))]
-        ,@(cdddr expr)
-        )
-     )
-   ))
 (define-syntax define-opt
   (ir-macro-transformer
    (lambda (expr inject compare)
@@ -491,24 +483,9 @@
                                                                                                                          new-priority)))))
                       ;; Let the user know that it is an invalid priority
                       (err "Invalid Priority" new-priority))
-                  (invalid-id-err (car action-args)))))
-
-
-
-          )
-
-
+                  (invalid-id-err (car action-args))))))
         (err "Todo file invalid: " (cat "Todo file at " todo-dir " is missing, damaged, or otherwise unreadable.")))))
 (let [(args (argv))]
   (cond
    [(> (length args) 1) (run (or (parse link (string-join (cdr args) " ")) (cdr args)))]
    [(fmt #t (dsp "todo [action-name] [action-args]") nl)]))
-(define-options '("test-subcommand" "--test=hello" "id" "hello" "--test=l")
-  [("list")
-   ()
-   (id . test)
-   test]
-  [("test-subcommand")
-   ((args:make-option (test) (optional: "test") "test argument"))
-   (id . rest)
-   id])
