@@ -193,14 +193,14 @@
             (expr (cdr expr))
             (action-arguments (car expr))
             (body (cdr expr))]
-       `(receive (,(inject 'options) ,(inject 'operands)) (args:parse (cdr ,argv) (list ,@action-opts) #:unrecognized-proc args:ignore-unrecognized-options)
-          (cond
-           [(not (member (car ,argv) ',action-names)) #f]
-           [(alist-ref 'help ,(inject 'options)) (print (args:usage (list ,@action-opts)))]
-           [(and (member (car ,argv) ',action-names) ((b:bindable? ,action-arguments) ,(inject 'operands)))
-            (b:bind ,action-arguments ,(inject 'operands)
-                  ,@body)]
-           [#t (print "Invalid argument count for " (car ,argv))]))))))
+       `(cons (list ,@action-names) (lambda ()
+                                      (receive (,(inject 'options) ,(inject 'operands)) (args:parse (cdr ,argv) (list ,@action-opts) #:unrecognized-proc args:ignore-unrecognized-options)
+                                        (cond
+                                         [(alist-ref 'help ,(inject 'options)) (print (args:usage (list ,@action-opts)))]
+                                         [(and (member (car ,argv) ',action-names) ((b:bindable? ,action-arguments) ,(inject 'operands)))
+                                          (b:bind ,action-arguments ,(inject 'operands)
+                                                  ,@body)]
+                                         [#t (print "Invalid argument count for " (car ,argv))]))))))))
 (define-syntax define-options
   (ir-macro-transformer
    (lambda (e i c)
@@ -208,7 +208,7 @@
             (argv (car e))
             (forms (map (lambda (form) (append (list (i 'define-opt) argv) form)) (cdr e)))]
        `(begin
-         ,@forms)))))
+          ((cdr (find (lambda (kv) (member (car ,argv) (car kv))) (list ,@forms)))))))))
 (define (task-at tasks id)
   (find (lambda (task) (= (task-id task) id)) tasks))
 (define (with-task-at-id tasks id thunk)
