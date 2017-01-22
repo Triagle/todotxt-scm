@@ -6,7 +6,6 @@
   (irregex-replace/all "'" str "'\''"))
 ;; Default configuration
 (define configuration (list
-                       (cons 'show-command "notify-send \"todo\"")
                        (cons 'list-style "table")
                        (cons 'todo-dir #f)
                        (cons 'project-colour fmt-yellow)
@@ -476,8 +475,6 @@
                   (overwrite-file todo-file (format-tasks-as-file (with-tasks-at-ids tasks ids
                                                                                      (cut add-to-todo <> 'project task-project project))))
                   (invalid-id-err ids))))
-           (("show") () (id) ""
-            (system (string-append (assoc-v 'show-command configuration) " '" (shell-escape (task->string (task-at tasks (string->number id)))) "'")))
            (("rm-project" "rp") () (ids project) "Remove a project from task."
             (let ((ids (as-ids ids)))
               (if (valid-ids ids)
