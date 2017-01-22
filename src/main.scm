@@ -181,20 +181,28 @@
   (let [(formatter (style-lookup (assoc-v 'list-style configuration)))]
     (formatter configuration tasks)))
 (define (explain-bindings command arguments)
-  (let loop ((bindings (if (list? arguments)
+  ;; Return an auto-generated documentation for a given subcommand, when supplied the arguments in the form of bindings
+  ;; E.g (explain-bindings "replace" (id . todo)) -> "replace <id> [todo...]"
+  ;; In this syntax, <a> denoted a compulsory argument, [b...] is an optional argument that takes the remainder of the arguments supplied, and [ignored argument] is an ignored argument
+  ;; The binding list is recursively iterated over with each binding mapped according to it's semantic meaning
+  ;; All "_" bindings should be reported as an ignored argument
+  ;; In the case that a binding follows the form (a . b) a is reported as a required argument, and b an optional argument taking the remainder of arguments supplied
+  ;; E.g (a . b) -> "<a> [b...]"
+  ;; In all other cases the binding is reported as a compulsory argument
+  (let loop ((bindings (if (list? arguments) ;; Reduce the number of cases to consider in the cond statement by ensuring bindings is always a list
                            arguments
                            (list arguments)))
              (help command))
-    (cond ((not (list? bindings)) (fmt #f " <" bindings ">"))
-          ((null-list? bindings) help)
+    (cond ((null-list? bindings) help)
           (#t (b:bind (cur-binding . rest-bindings) bindings
                       (cond
-                       ((pair? cur-binding) (fmt #f help (loop (car cur-binding) "") " [" (cdr cur-binding) "...]"))
+                       ((pair? cur-binding) (fmt #f help (loop (list (car cur-binding)) "") " [" (cdr cur-binding) "...]"))
                        ((equal? cur-binding '_) (loop rest-bindings (string-append help " [ignored argument]")))
                        (#t (loop rest-bindings (fmt #f help " <" cur-binding ">") ))))))))
 (define-syntax define-opt
   (ir-macro-transformer
    (lambda (expr inject compare)
+     ;; For some reason I cannot use a bind statement in a macro so this ugly hack is how I go about binding expression properly
      (let* [(expr (cdr expr))
             (argv (car expr))
             (expr (cdr expr))
