@@ -1,6 +1,6 @@
 ;; Main CLI interface
-(declare (uses todotxt todotxt-utils config uri tree))
-(require-extension args fmt fmt-unicode comparse irregex fmt-color numbers symbol-utils srfi-19-support srfi-19-time bindings)
+(declare (uses todotxt todotxt-utils config uri parse tree))
+(require-extension args fmt fmt-unicode comparse irregex fmt-color numbers symbol-utils srfi-19-support srfi-19-time srfi-19-date bindings)
 (use args fmt fmt-color fmt-unicode irregex utils comparse numbers symbol-utils srfi-19-support srfi-19-time (prefix bindings b:))
 (define (shell-escape str)
   (irregex-replace/all "'" str "'\''"))
@@ -435,7 +435,7 @@
                                                 ;; Remove all tasks that aren't done, thus isolated the newly updated tasks
                                                 (complement task-done)
                                                 ;; Update tasklist, marking the selected ids as done.
-                                                (with-tasks-at-ids tasks ids (cut update-task <> done: #t)))))
+                                                (with-tasks-at-ids tasks ids (cut update-task <> done: #t completed-date: (current-date))))))
                    ;; Overwrite the original todo file, removing the newly marked todo items unless a recur property prevents them
                    (overwrite-file todo-file (format-tasks-as-file
                                               ;; Schedule a new todo item in the future for all todos at ids that have a recur property
@@ -457,6 +457,18 @@
                                                      ;; Otherwise just return the same task untouched
                                                      t))))))
                  (invalid-id-err ids))))
+          (("recently") ((args:make-option (duration d) (required: "DRTN") "set the duration that counts as recent")
+                         (args:make-option (style) (required: "STYLE") "set the style to print recent tasks in")) _ "View recently completed tasks."
+           (let* [(duration (if (or (not (alist-ref 'duration options)) (not (parse duration (alist-ref 'duration options))))
+                                (make-duration days: 7)
+                                (parse duration (alist-ref 'duration options))))
+                  (tasks (filter (lambda (task)
+                                   (and (task-completed-date task) (< (time->days (date-cmp-now (task-completed-date task))) (time->days duration)))) done-tasks))
+                  (configuration (if (alist-ref 'style options)
+                                     (cons (cons 'list-style (alist-ref 'style options)) configuration)
+                                     configuration))]
+             (fmt #t "Showing completed tasks for the last " (or (alist-ref 'duration options) "week") "." nl)
+             (print-tasks configuration tasks)))
           (("bump" "promote") () (ids) "Bump (raise task priority by one) task."
            (let ((ids (as-ids ids)))
              (if (valid-ids ids)
