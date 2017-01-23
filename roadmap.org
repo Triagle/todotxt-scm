@@ -15,10 +15,10 @@ A roadmap of the features I wish to have at some point.
     problem to managing pointers in C.
 - [ ] Retain typed input order
   - Not sure how useful this is? idk but nice to have
-- [ ] Allow task revival
+- [X] Allow task revival
   - Basically let the user bring done tasks back into the main list
   - It's easy to do, and adds usability by providing a simple undo button
-- [ ] Add recently completed tasks commands
+- [X] Add recently completed tasks commands
   - Show a list of tasks that were recently completed
   - Will require some tweaking to the =done= subcommand to automatically add dates
     to tasks on completion
