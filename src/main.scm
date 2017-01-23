@@ -286,7 +286,8 @@
          ;; The parsed done.txt file
          (done-tasks (parse-filename done-file)))
     (if (and tasks done-tasks)
-        (define-options args
+        (let ((done-tasks (map (lambda (task) (update-task task id: (+ (length tasks) (task-id task)))) done-tasks)))
+(define-options args
           [("list" "ls" "listall") ((args:make-option (style) (required: "STYLE") "set the listing style")) action-args "List todo items based on an optional filter (action-args)."
            (let ((task-count (+ (length tasks) (if (equal? action "listall") ;; If the user is trying to list done tasks, they should be included in the count.
                                                    (length done-tasks)
@@ -341,6 +342,13 @@
                                             (remove (lambda (task)
                                                       (member (task-id task) ids)) tasks)))
                  (invalid-id-err ids))))
+          (("revive") () (ids) "Unmark a completed task as completed."
+           (let ((ids (as-ids ids)))
+             (if (valid-ids ids)
+                 (let ((selected-tasks (filter (lambda (task) (member (task-id task) ids)) done-tasks)))
+                   (overwrite-file done-file (format-tasks-as-file
+                                              (remove (cut member <> selected-tasks)  done-tasks)))
+                   (write-to-a-file todo-file (format-tasks-as-file (map (cut update-task <> done: #f) selected-tasks)))))))
           (("replace") () (id . todo) "Replace task at id with todo."
            ;; Replace the todo at id with new text todo, overwriting the original todo file. Equivalent to todo rm and then todo add.
            (let ((id (string->number id)))
@@ -506,7 +514,7 @@
                                                                                                                          new-priority)))))
                       ;; Let the user know that it is an invalid priority
                       (err "Invalid Priority" new-priority))
-                  (invalid-id-err ids)))))
+                  (invalid-id-err ids))))))
         (err "Todo file invalid: " (cat "Todo file at " todo-dir " is missing, damaged, or otherwise unreadable.")))))
 (let [(args (argv))]
   (run (or (parse link (string-join (cdr args) " ")) (cdr args))))
