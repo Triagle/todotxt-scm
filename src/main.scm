@@ -320,12 +320,12 @@
                                     (cons (cons 'list-style (alist-ref 'style options)) configuration)
                                     configuration))]
              (print-tasks configuration tasks)))
-          (("refile") () (id) "Refile (remove inbox item status of) task at id."
+          (("refile") () (ids) "Refile (remove inbox item status of) task at id."
            ;; Overwrite the existing todo file, where the task at id is changed such that it no longer has an inbox status
-           (let [(id (string->number id))]
-             (if id
-                 (overwrite-file todo-file (format-tasks-as-file (with-task-at-id tasks id
-                                                                                  (cut update-task <> inbox: #f))))
+           (let [(ids (as-ids ids))]
+             (if (valid-ids ids)
+                 (overwrite-file todo-file (format-tasks-as-file (with-tasks-at-ids tasks ids
+                                                                                    (cut update-task <> inbox: #f))))
                  (invalid-id-err id))))
           (("listproj" "lsprj") () _ "List all projects in task list."
            ;; List all the projects that are present in any task on the todo list
