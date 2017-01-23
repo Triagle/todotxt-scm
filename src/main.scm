@@ -303,11 +303,11 @@
                   (length tasks) " out of " task-count " task" (if (= task-count 1)
                                                                    ""
                                                                    "s") " shown." nl))]
-          [("next") () action-args "Select the next most urgent task matching an optional filter (action-args)."
+          [("next") ((args:make-option (higlighted) #:none "highlight next action")) action-args "Select the next most urgent task matching an optional filter (action-args)."
            (let [(tasks (sort (filter (standard-task-filter (string-join action-args " " ) #f) tasks) task-priority<?))]
              (if tasks
                  ;; Pop off the top task (because of the sorting this is also the highest priority), and print it in text form.
-                 (if (assoc-v 'highlight-next-action configuration)
+                 (if (alist-ref 'highlighted options)
                      (fmt #t (print-task-as-highlighted configuration (car tasks)) nl)
                      (print (task->string (car tasks))))
                  (print "No tasks to do next.")))]
