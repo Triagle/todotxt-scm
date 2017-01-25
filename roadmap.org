@@ -3,6 +3,12 @@
 A roadmap of the features I wish to have at some point.
 * Features
 ** Tasks
+- [ ] Show stagnant tasks that haven't been completed recently
+  - Could be helpful to identify the types of tasks you don't completed
+  - Shouldn't be too difficult to implement in theory
+- [ ] Allow for n-order sorting
+  - Basically means sorting by priority and then due date if priority is
+    unavailable
 - [ ] Dumb print when piping to other programs.
   - Currently piped output is not stripped of it's colour, which hampers it when
     piping to other programs. Probably shouldn't do that.
