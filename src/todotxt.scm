@@ -240,6 +240,12 @@
     [(and (time? a) (time? b)) time<?]
     [(and (string? a) (string? b)) string<?]
     [#t (lambda (a b) #f)]) a b))
+(define (task-age<? a b)
+  (cond
+   [(equal? (task-date a) (task-date b)) 'equal]
+   [(not (task-date a)) #f]
+   [(not (task-date b)) #t]
+   [#t (date<? (task-date a) (task-date b))]))
 (define (task-property<? a b property)
   (cond
    [(not (assoc property (task-property a))) #f]

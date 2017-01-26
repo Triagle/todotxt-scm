@@ -477,6 +477,19 @@
                                      configuration))]
              (fmt #t "Showing completed tasks for the last " (or (alist-ref 'duration options) "week") "." nl)
              (print-tasks configuration tasks)))
+          (("stagnant" "old" "stuck") ((args:make-option (duration d) (required: "DRTN") "set the duration that counts as recent")
+                                       (args:make-option (style) (required: "STYLE") "set the style to print recent tasks in")) _ "View old unfinished tasks"
+           (let* [(duration (if (or (not (alist-ref 'duration options)) (not (parse duration (alist-ref 'duration options))))
+                                (make-duration days: 7)
+                                (parse duration (alist-ref 'duration options))))
+                  (tasks (filter (lambda (task)
+                                   (and (task-date task)
+                                        (> (time->days (date-cmp-now (task-date task))) (time->days duration)))) tasks))
+                  (configuration (if (alist-ref 'style options)
+                                     (cons (cons 'list-style (alist-ref 'style options)) configuration)
+                                     configuration))]
+             (fmt #t "Showing tasks older than " (or (alist-ref 'duration options) "a week") "." nl)
+             (print-tasks configuration tasks)))
           (("bump" "promote") () (ids) "Bump (raise task priority by one) task."
            (let ((ids (as-ids ids)))
              (if (valid-ids ids)

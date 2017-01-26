@@ -54,6 +54,7 @@
   (list
    (cons "id<?" task-id<?)
    (cons "priority<?" task-priority<?)
+   (cons "age<?" task-age<?)
    (cons "due<?" (cut task-property<? <> <> 'due))))
 (define symbol
   (as-symbol (as-string (one-or-more (none-of* (char-seq ",") (char-seq "]") item)))))
