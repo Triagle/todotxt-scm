@@ -1,5 +1,5 @@
 (declare (unit config))
-(declare (uses parse))
+(declare (uses parse todotxt))
 (require-extension comparse fmt fmt-color )
 (use comparse fmt fmt-color utils)
 (define key-charset
@@ -50,6 +50,24 @@
   (bind (any-of (char-seq "false") (char-seq "true"))
         (lambda (res)
           (result (equal? res "true")))))
+(define fn-set
+  (list
+   (cons "id<?" task-id<?)
+   (cons "priority<?" task-priority<?)
+   (cons "due<?" (cut task-property<? <> <> 'due))))
+(define symbol
+  (as-symbol (as-string (one-or-more (none-of* (char-seq ",") (char-seq "]") item)))))
+(define sort-fn
+  (sequence* [(invert (maybe (char-seq "!")))
+              (fn (apply any-of (map (o char-seq car) fn-set)))]
+             (let* [(fn (assoc-v fn fn-set default: #f))]
+               (result (cond
+                        ((not fn) fail)
+                        (invert (lambda (a b) (let [(res (fn a b))]
+                                                (if (equal? res 'equal)
+                                                    'equal
+                                                    (not res)))))
+                        (#t fn))))))
 (define value
   (recursive-parser
    (any-of
@@ -59,6 +77,7 @@
     number
     character
     colour
+    sort-fn
     (array value)
     string-literal)))
 (define comment

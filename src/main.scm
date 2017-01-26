@@ -8,6 +8,7 @@
 (define configuration (list
                        (cons 'list-style "table")
                        (cons 'todo-dir #f)
+                       (cons 'sorting (list task-priority<? (cut task-property<? <> <> 'due) task-id<?))
                        (cons 'project-colour fmt-yellow)
                        (cons 'highlight-next-action #f)
                        (cons 'context-colour fmt-green)
@@ -294,7 +295,7 @@
                                                    0)))
                  ;; Tasks are filtered using the standard task filter, and then sorted by their priority
                  (tasks (sort (filter (standard-task-filter (string-join action-args " ") (equal? action "listall"))
-                                      (append tasks done-tasks)) task-priority<?))
+                                      (append tasks done-tasks)) (apply sort-by (assoc-v 'sorting configuration))))
                  (configuration (if (alist-ref 'style options)
                                     (cons (cons 'list-style (alist-ref 'style options)) configuration)
                                     configuration)))
