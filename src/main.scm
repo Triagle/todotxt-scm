@@ -388,10 +388,17 @@
 
           (("add" "a") () action-args "Add task."
            ;; Simple append text passed as the arguments to a file.
-           (write-to-a-file todo-file (string-join action-args " ")))
+           (write-to-a-file todo-file (task->string
+                                       (update-task (new-task)
+                                                    date: (current-date)
+                                                    text: (string-join action-args " ")))))
           (("capture" "c") () action-args "Capture (add to inbox) a task."
            ;; Capture a todo as an inbox item directly
-           (write-to-a-file todo-file (string-append "* " (string-join action-args " "))))
+           (write-to-a-file todo-file (task->string
+                                       (update-task (new-task)
+                                                   inbox: #t
+                                                   date: (current-date)
+                                                   text: (string-join action-args " ")))))
 
           (("cat" "cat-all") () _ "Dumb print all tasks."
            ;; Print the raw text contents of either the todo.txt file, or done.txt file
