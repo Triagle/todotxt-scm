@@ -3,22 +3,15 @@
 A roadmap of the features I wish to have at some point.
 * Features
 ** Tasks
-- [ ] Show stagnant tasks that haven't been completed recently
+- [X] Show stagnant tasks that haven't been completed recently
   - Could be helpful to identify the types of tasks you don't completed
   - Shouldn't be too difficult to implement in theory
-- [ ] Allow for n-order sorting
+- [X] Allow for n-order sorting
   - Basically means sorting by priority and then due date if priority is
     unavailable
 - [ ] Dumb print when piping to other programs.
   - Currently piped output is not stripped of it's colour, which hampers it when
     piping to other programs. Probably shouldn't do that.
-- [ ] Blocking tasks
-  - Similar to blocking tasks in taskwarrior, in that certain tasks can block the completion of
-    another
-  - Might not actually be possible in hindsight. As I cannot make any guarantees
-    about the id of any given task, a blocking task might
-    accidentally reference a task that no longer exists. This is a similar
-    problem to managing pointers in C.
 - [ ] Retain typed input order
   - Not sure how useful this is? idk but nice to have
 - [X] Allow task revival
@@ -55,3 +48,11 @@ Not features, but improve the stability/presentation/etc... of the project.
   - Is there even a unit test library for chicken scheme?
 - [ ] Cool logo
   - The terminal screenshot is fairly unreadable
+* Graveyard
+- Blocking tasks
+  - Similar to blocking tasks in taskwarrior, in that certain tasks can block the completion of
+    another
+  - Might not actually be possible in hindsight. As I cannot make any guarantees
+    about the id of any given task, a blocking task might
+    accidentally reference a task that no longer exists. This is a similar
+    problem to managing pointers in C.
