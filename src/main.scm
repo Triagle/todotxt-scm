@@ -306,7 +306,7 @@
                                                                    ""
                                                                    "s") " shown." nl))]
           [("next") ((args:make-option (higlighted) #:none "highlight next action")) action-args "Select the next most urgent task matching an optional filter (action-args)."
-           (let [(tasks (sort (filter (standard-task-filter (string-join action-args " " ) #f) tasks) task-priority<?))]
+           (let [(tasks (sort (filter (standard-task-filter (string-join action-args " " ) #f) tasks) (apply sort-by (assoc-v 'sorting configuration))))]
              (if tasks
                  ;; Pop off the top task (because of the sorting this is also the highest priority), and print it in text form.
                  (if (alist-ref 'highlighted options)
