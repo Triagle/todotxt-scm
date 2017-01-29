@@ -14,6 +14,8 @@ A roadmap of the features I wish to have at some point.
     piping to other programs. Probably shouldn't do that.
 - [ ] Retain typed input order
   - Not sure how useful this is? idk but nice to have
+- [X] Allow broader selection of tasks than simply ids
+  - E.g =todo rm +world= to remove all tasks in the world project
 - [X] Allow task revival
   - Basically let the user bring done tasks back into the main list
   - It's easy to do, and adds usability by providing a simple undo button
