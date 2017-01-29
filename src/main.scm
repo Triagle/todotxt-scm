@@ -33,6 +33,7 @@
                        (cons 'context-colour fmt-green)
                        (cons 'property-colour dsp)
                        (cons 'overdue-colour fmt-red)
+                       (cons 'columns (list "id" "priority" "task" "projects" "contexts" "properties"))
                        (cons 'priority-colours (list (list #\A fmt-red)))
                        (cons 'time-colours (list (list (make-duration days: 1) fmt-red)))))
 
@@ -151,43 +152,43 @@
             (fmt-join (cut cat <> nl) (map (cut print-task-as-highlighted configuration <>) tasks))))))
 (define (print-tasks-as-tree configuration tasks)
   (walk-tree (tree-of-tasks (reverse tasks)) (cut print-branch (lambda (task)
-                                                       (cat (task-id task) ". " (print-task-as-highlighted configuration task))) <> <>)))
+                                                                 (cat (task-id task) ". " (print-task-as-highlighted configuration task))) <> <>)))
+(define column-set
+  (list
+   (cons "id" (lambda (x) (cat (if (task-done x)
+                             "x "
+                             "") (num (task-id x)))))
+   (cons "priority" (cut colour-priority configuration <>))
+
+   (cons "task" (lambda (task)
+                  (if (task-done task)
+                      (fmt-unicode (fmt-green (dsp (task-text task))))
+                      (task-text task))))
+   (cons "projects"
+         (lambda (task) (fmt-join dsp (task-project task) ", ")))
+   (cons "contexts" (lambda (task) (fmt-join dsp (task-context task) ", ")))
+   (cons "properties" (lambda (task)
+                        (fmt-join dsp (map (lambda (property)
+                                             (cat ((if (and (equal? (car property) 'due) (date? (cdr property)))
+                                                       ;; If the property is "due" and the due date is due soon, colour it.
+                                                       (colour-days-out configuration (cdr property))
+                                                       ;; Otherwise leave as is
+                                                       identity) (car property)) ":" (property-value->string (cdr property)))) (task-property task)) ", ")))
+   )
+  )
+(define (capitalize str)
+  (list->string (b:bind (c . rest) (string->list str)
+                        (cons (char-upcase c) rest))))
 (define (print-tasks-as-table configuration tasks)
   ;; Print tasks in table form, with each column growing as required
   (fmt #t (fmt-unicode
-           (tabular
-            "| "
-            ;; ID column consists of either the task id (e.g 1) or an 'x' if that task is done
-            (column "ID" (lambda (x) (cat (if (task-done x)
-                                              "x "
-                                              "") (num (task-id x)))) tasks)
-            " | "
-            ;; See colour-priority for how this is formatted
-            (column "Priority" (cut colour-priority configuration <>) tasks)
-            " | "
-            ;; If the task is done, the task text is formatted in green, and is otherwise normal text
-            (column "Task" (lambda (task)
-                             (if (task-done task)
-                                 (fmt-unicode (fmt-green (dsp (task-text task))))
-                                 (task-text task))) tasks)
-            " | "
-            ;; Join the projects by ',' (e.g "todo.txt,programming").
-            ;; Although the todo.txt gtd mantra frowns upon multiple projects, it can be very useful for delimiting sub projects.
-            (column "Projects"
-                    (lambda (task) (fmt-join dsp (task-project task) ", ")) tasks)
-            " | "
-            ;; Join the contexts of a task by ',' (e.g home,computer,mall)
-            (column "Contexts" (lambda (task) (fmt-join dsp (task-context task) ", ")) tasks)
-            " | "
-            ;; Join the properties in the format "key:value,key1:value1"
-            ;; The "due" property is treated separately in that it is highlighted depending on the urgency of the due date.
-            (column "Properties" (lambda (task)
-                                   (fmt-join dsp (map (lambda (property)
-                                                        (cat ((if (and (equal? (car property) 'due) (date? (cdr property)))
-                                                                  ;; If the property is "due" and the due date is due soon, colour it.
-                                                                  (colour-days-out configuration (cdr property))
-                                                                  ;; Otherwise leave as is
-                                                                  identity) (car property)) ":" (property-value->string (cdr property)))) (task-property task)) ", ")) tasks) " |"))))
+           (apply tabular (append '("| ")
+                                  (butlast (foldr (lambda (column-name acc)
+                                                    (let [(column-formatter (assoc column-name column-set))]
+                                                      (if column-formatter
+                                                          (append acc (list (column (capitalize (car column-formatter)) (cdr column-formatter) tasks) " | "))
+                                                          acc))) '() (reverse (assoc-v 'columns configuration))))
+                                  '(" |"))))))
 (define (style-lookup list-style)
   ;; return the task printing function associated with the list-style
   (assoc-v list-style
