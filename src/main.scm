@@ -517,7 +517,7 @@
              ;; Cycle the priority of the tasks downwards with ids in ids, giving them a priority of Z if they don't already have one
              (overwrite-file todo-file (format-tasks-as-file (with-tasks-at-selector tasks selector (cut cycle-priority <> + #\Z))))))
           (("add-context" "ac") () (qualifier context) "Add context to a task."
-           (let ((selector (parse selector ids)))
+           (let ((selector (parse selector qualifier)))
              ;; Add a context to a todo item
              (overwrite-file todo-file (format-tasks-as-file (with-tasks-at-selector tasks selector
                                                                                 (cut add-to-todo <> 'context task-context context))))))
