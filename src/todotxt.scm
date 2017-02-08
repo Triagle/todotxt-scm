@@ -183,6 +183,7 @@
 (define (task-priority<? a b)
   ;; Compare two tasks by priority
   (cond
+   ((equal? (task-priority a) (task-priority b)) 'equal)
    ((and (task-priority a) (task-priority b)) (char<=? (task-priority a) (task-priority b)))
    ((not (task-priority a)) #f)
    ((not (task-priority b)) #t)))
@@ -230,4 +231,26 @@
 (define (format-tasks-as-file tasks)
   ;; Convert a list of task structs to strings, joining them with newlines so as to be saved to disk
   (string-append (string-join (map task->string tasks) "\n") "\n"))
+(define (task-id<? a b)
+  (< (task-id a) (task-id b)))
+(define (property<? a b)
+  ((cond
+    [(and (date? a) (date? b)) date<?]
+    [(and (number? a) (number? b)) <]
+    [(and (time? a) (time? b)) time<?]
+    [(and (string? a) (string? b)) string<?]
+    [#t (lambda (a b) #f)]) a b))
+(define (task-age<? a b)
+  (cond
+   [(equal? (task-date a) (task-date b)) 'equal]
+   [(not (task-date a)) #f]
+   [(not (task-date b)) #t]
+   [#t (date<? (task-date a) (task-date b))]))
+(define (task-property<? a b property)
+  (cond
+   [(not (assoc property (task-property a))) #f]
+   [(not (assoc property (task-property b))) #t]
+   [(equal? (assoc-v property (task-property a)) (assoc-v property (task-property b))) 'equal]
+   [#t (property<? (assoc-v property (task-property a)) (assoc-v property (task-property b)))])
+  )
 ;; Todo list manipulation

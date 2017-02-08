@@ -11,10 +11,13 @@
    (#t #t)))
 (define (valid-day year month day)
   ;; Returns #t if the day is valid for the given month and year
-  (case month
-    ((2) (<= day (if (leap-year? year) 29 28)))
-    ((4 6 9 11) (<= day 30))
-    (else (<= day 31))))
+
+  (if (or (not (exact? year)) (not (exact? month)) (not (exact? day) ) (> month 12) (>= 0 month) (>= 0 day))
+      #f
+      (case month
+        ((2) (<= day (if (leap-year? year) 29 28)))
+        ((4 6 9 11) (<= day 30))
+        (else (<= day 31)))))
 (define space
   ;; space aliases the char-set:whitespace variable
   (char-set-difference char-set:whitespace (->char-set "\r\n")))
@@ -34,7 +37,7 @@
   (char-seq "-"))
 (define -space
   ;; -space defines a charset that is the inverse of whitespace (i.e every character but whitespace characters)
-  char-set:graphic)
+  (char-set-difference char-set:full char-set:whitespace))
 (define digit
   ;; Checks if character is in the digit character set
   (in char-set:digit))
@@ -63,7 +66,7 @@
   ;; The grammar for this looks like 2016-03-12, in the YYYY-MM-DD format.
   ;; The day month and year is automatically checked for validity
   (sequence* ((y (digits 4)) (_ dash) (m (digits 2)) (_ dash) (d (digits 2)))
-             (if (or (> m 12) (= 0 m) (= 0 d) (not (valid-day y m d)))
+             (if (not (valid-day y m d))
                  fail
                  (result (make-date 0 0 0 0 d m y)))))
 (define (list-of p #!key (sep (char-seq ",")))

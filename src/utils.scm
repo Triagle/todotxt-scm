@@ -28,3 +28,6 @@
 (define (weed l)
   ;; Filter all falsey items from a list
   (filter identity l))
+(define (sort-by . sorts)
+  (lambda (a b)
+    (find (cut (complement equal?) <> 'equal) (map (cut <> a b) sorts))))
