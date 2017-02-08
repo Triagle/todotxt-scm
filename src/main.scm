@@ -153,7 +153,7 @@
 (define (print-tasks-as-tree configuration tasks)
   (walk-tree (tree-of-tasks (reverse tasks)) (cut print-branch (lambda (task)
                                                                  (cat (task-id task) ". " (print-task-as-highlighted configuration task))) <> <>)))
-(define column-set
+(define (column-set configuration)
   (list
    (cons "id" (lambda (x) (cat (if (task-done x)
                              "x "
@@ -179,15 +179,15 @@
 (define (capitalize str)
   (list->string (b:bind (c . rest) (string->list str)
                         (cons (char-upcase c) rest))))
-(define (print-tasks-as-table configuration tasks)
+(define (print-tasks-as-table cfg tasks)
   ;; Print tasks in table form, with each column growing as required
   (fmt #t (fmt-unicode
            (apply tabular (append '("| ")
                                   (butlast (foldr (lambda (column-name acc)
-                                                    (let [(column-formatter (assoc column-name column-set))]
+                                                    (let [(column-formatter (assoc column-name (column-set cfg)))]
                                                       (if column-formatter
                                                           (append acc (list (column (capitalize (car column-formatter)) (cdr column-formatter) tasks) " | "))
-                                                          acc))) '() (reverse (assoc-v 'columns configuration))))
+                                                          acc))) '() (reverse (assoc-v 'columns cfg))))
                                   '(" |"))))))
 (define (style-lookup list-style)
   ;; return the task printing function associated with the list-style
