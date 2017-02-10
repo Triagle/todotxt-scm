@@ -352,7 +352,9 @@
            (let [(ids (as-ids ids))]
              (if (valid-ids ids)
                  (overwrite-file todo-file (format-tasks-as-file (with-tasks-at-ids tasks ids
-                                                                                    (cut update-task <> inbox: #f))))
+                                                                                    (cut update-task <> inbox: #f
+                                                                                         date: (current-date)
+                                                                                         ))))
                  (invalid-id-err id))))
           (("listproj" "lsprj") () _ "List all projects in task list."
            ;; List all the projects that are present in any task on the todo list
@@ -370,7 +372,7 @@
              (let ((selected-tasks (filter selector done-tasks)))
                (overwrite-file done-file (format-tasks-as-file
                                           (remove (cut member <> selected-tasks)  done-tasks)))
-               (write-to-a-file todo-file (format-tasks-as-file (map (cut update-task <> done: #f) selected-tasks))))))
+               (write-to-a-file todo-file (format-tasks-as-file (map (cut update-task <> done: #f completed-date: #f) selected-tasks))))))
           (("replace") () (id . todo) "Replace task at id with todo."
            ;; Replace the todo at id with new text todo, overwriting the original todo file. Equivalent to todo rm and then todo add.
            (let ((id (string->number id)))
