@@ -465,7 +465,7 @@
                                             ;; Remove all tasks that aren't done, thus isolated the newly updated tasks
                                             (complement task-done)
                                             ;; Update tasklist, marking the selected ids as done.
-                                            (with-tasks-at-selector tasks selector (cut update-task <> done: #t completed-date: (current-date))))))
+                                            (with-tasks-at-selector tasks selector (cut update-task <> done: #t inbox: #f completed-date: (current-date))))))
                ;; Overwrite the original todo file, removing the newly marked todo items unless a recur property prevents them
                (overwrite-file todo-file (format-tasks-as-file
                                           ;; Schedule a new todo item in the future for all todos at ids that have a recur property
