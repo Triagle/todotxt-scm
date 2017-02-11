@@ -32,6 +32,7 @@
                        (cons 'highlight-next-action #f)
                        (cons 'context-colour fmt-green)
                        (cons 'property-colour dsp)
+                       (cons 'tree-property "project")
                        (cons 'overdue-colour fmt-red)
                        (cons 'columns (list "id" "priority" "task" "projects" "contexts" "properties"))
                        (cons 'priority-colours (list (list #\A fmt-red)))
@@ -133,15 +134,15 @@
                                   (colour-days-out configuration (cdr property))
                                   ;; Otherwise leave as is
                                   (assoc-v 'property-colour configuration)) (car property)) ":" (property-value->string (cdr property)))) (task-property task)))))
-
-(define (tree-of-tasks tasks)
-  (foldl (lambda (tree t)
-           (tree-add tree (if (null-list? (task-project t))
-                              '(no-project)
-                              (task-project t)
-                              ) t))
-         '()
-         tasks))
+(define (tree-property-adder tree t property)
+  (tree-add tree (if (null-list? (property t))
+                     '(none)
+                     (property t)) t))
+(define (tree-of-tasks tasks property)
+  (foldl
+   (cut tree-property-adder <> <> property)
+   '()
+   tasks))
 (define (print-tasks-as-highlighted configuration tasks)
   ;; Print a list of tasks as highlighted output, prepending and padding the task id to each
   (fmt #t (fmt-unicode
@@ -150,9 +151,16 @@
             (fmt-join (cut cat <> nl) (map (cut task-id <>) tasks))
             " "
             (fmt-join (cut cat <> nl) (map (cut print-task-as-highlighted configuration <>) tasks))))))
+(define tree-property-set
+  (list
+   (cons "project" task-project)
+   (cons "context" task-context)))
 (define (print-tasks-as-tree configuration tasks)
-  (walk-tree (tree-of-tasks (reverse tasks)) (cut print-branch (lambda (task)
-                                                                 (cat (task-id task) ". " (print-task-as-highlighted configuration task))) <> <>)))
+  (let [(tree-property (assoc-v (assoc-v 'tree-property configuration) tree-property-set))]
+    (if tree-property
+     (walk-tree (tree-of-tasks (reverse tasks) tree-property) (cut print-branch (lambda (task)
+                                                                    (cat (task-id task) ". " (print-task-as-highlighted configuration task))) <> <>))
+     (err "Invalid property" (assoc-v 'tree-property-set configuration)))))
 (define (column-set configuration)
   (list
    (cons "id" (lambda (x) (cat (if (task-done x)
@@ -292,6 +300,10 @@
   (let [(directories (cons "./" fallback-dirs))]
     (find (lambda (dir)
             (and dir (file-exists? (string-append dir "todo.txt")) (file-exists? (string-append dir "done.txt")))) directories)))
+(define (maybe-cons el lst tst)
+  (if (tst el)
+      (cons el lst)
+      lst))
 (define (run args)
   ;; args is a list of strings contained the arguments passed to the executable
   ;; e.g '("pri" "2" "A")
@@ -314,16 +326,17 @@
     (if (and tasks done-tasks)
         (let ((done-tasks (map (lambda (task) (update-task task id: (+ (length tasks) (task-id task)))) done-tasks)))
 (define-options args
-          [("list" "ls" "listall") ((args:make-option (style) (required: "STYLE") "set the listing style")) action-args "List todo items based on an optional filter (action-args)."
+  [("list" "ls" "listall") ((args:make-option (style) (required: "STYLE") "set the listing style")
+                            (args:make-option (by-property) (required: "PROPERTY") "Make tree based on PROPERTY (e.g context, project)")) action-args "List todo items based on an optional filter (action-args)."
            (let ((task-count (+ (length tasks) (if (equal? action "listall") ;; If the user is trying to list done tasks, they should be included in the count.
                                                    (length done-tasks)
                                                    0)))
                  ;; Tasks are filtered using the standard task filter, and then sorted by their priority
                  (tasks (sort (filter (standard-task-filter (string-join action-args " ") (equal? action "listall"))
                                       (append tasks done-tasks)) (apply sort-by (assoc-v 'sorting configuration))))
-                 (configuration (if (alist-ref 'style options)
-                                    (cons (cons 'list-style (alist-ref 'style options)) configuration)
-                                    configuration)))
+                 (configuration (foldr (cut maybe-cons <> <> (o identity cdr))
+                                       configuration
+                                       (list (cons 'list-style (alist-ref 'style options)) (cons 'tree-property (alist-ref 'by-property options))))))
              (print-tasks configuration tasks)
              (fmt #t
                   "---" nl
