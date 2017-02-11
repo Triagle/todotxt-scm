@@ -327,7 +327,7 @@
         (let ((done-tasks (map (lambda (task) (update-task task id: (+ (length tasks) (task-id task)))) done-tasks)))
 (define-options args
   [("list" "ls" "listall") ((args:make-option (style) (required: "STYLE") "set the listing style")
-                            (args:make-option (by-property) (required: "PROPERTY") "Make tree based on PROPERTY (e.g context, project)")) action-args "List todo items based on an optional filter (action-args)."
+                            (args:make-option (by-property) (required: "PROP") "Make tree based on PROPERTY (e.g context, project)")) action-args "List todo items based on an optional filter (action-args)."
            (let ((task-count (+ (length tasks) (if (equal? action "listall") ;; If the user is trying to list done tasks, they should be included in the count.
                                                    (length done-tasks)
                                                    0)))
