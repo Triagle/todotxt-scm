@@ -158,14 +158,14 @@
 (define (print-tasks-as-tree configuration tasks)
   (let [(tree-property (assoc-v (assoc-v 'tree-property configuration) tree-property-set))]
     (if tree-property
-     (walk-tree (tree-of-tasks (reverse tasks) tree-property) (cut print-branch (lambda (task)
-                                                                    (cat (task-id task) ". " (print-task-as-highlighted configuration task))) <> <>))
-     (err "Invalid property" (assoc-v 'tree-property-set configuration)))))
+        (walk-tree (tree-of-tasks (reverse tasks) tree-property) (cut print-branch (lambda (task)
+                                                                                     (cat (task-id task) ". " (print-task-as-highlighted configuration task))) <> <>))
+        (err "Invalid property" (assoc-v 'tree-property-set configuration)))))
 (define (column-set configuration)
   (list
    (cons "id" (lambda (x) (cat (if (task-done x)
-                             "x "
-                             "") (num (task-id x)))))
+                                   "x "
+                                   "") (num (task-id x)))))
    (cons "priority" (cut colour-priority configuration <>))
 
    (cons "task" (lambda (task)
@@ -275,9 +275,9 @@
   (foldr (lambda (id tasks) (with-task-at-id tasks id thunk)) tasks ids))
 (define (with-tasks-at-selector tasks selector thunk)
   (map (lambda (task)
-           (if (selector task)
-               (thunk task)
-               task)) tasks))
+         (if (selector task)
+             (thunk task)
+             task)) tasks))
 (define (standard-task-filter filter-args show-all?)
   ;; Returns a function that can be passed to filter
   ;; It by default filters out inbox items, as well as done items
@@ -325,251 +325,254 @@
          (done-tasks (parse-filename done-file)))
     (if (and tasks done-tasks)
         (let ((done-tasks (map (lambda (task) (update-task task id: (+ (length tasks) (task-id task)))) done-tasks)))
-(define-options args
-  [("list" "ls" "listall") ((args:make-option (style) (required: "STYLE") "set the listing style")
-                            (args:make-option (by-property) (required: "PROP") "Make tree based on PROPERTY (e.g context, project)")) action-args "List todo items based on an optional filter (action-args)."
-           (let ((task-count (+ (length tasks) (if (equal? action "listall") ;; If the user is trying to list done tasks, they should be included in the count.
-                                                   (length done-tasks)
-                                                   0)))
-                 ;; Tasks are filtered using the standard task filter, and then sorted by their priority
-                 (tasks (sort (filter (standard-task-filter (string-join action-args " ") (equal? action "listall"))
-                                      (append tasks done-tasks)) (apply sort-by (assoc-v 'sorting configuration))))
-                 (configuration (foldr (cut maybe-cons <> <> (o identity cdr))
-                                       configuration
-                                       (list (cons 'list-style (alist-ref 'style options)) (cons 'tree-property (alist-ref 'by-property options))))))
-             (print-tasks configuration tasks)
-             (fmt #t
-                  "---" nl
-                  (length tasks) " out of " task-count " task" (if (= task-count 1)
-                                                                   ""
-                                                                   "s") " shown." nl))]
-          [("next") ((args:make-option (highlighted) #:none "highlight next action")) action-args "Select the next most urgent task matching an optional filter (action-args)."
-           (let [(tasks (sort (filter (standard-task-filter (string-join action-args " " ) #f) tasks) (apply sort-by (assoc-v 'sorting configuration))))]
-             (if tasks
-                 ;; Pop off the top task (because of the sorting this is also the highest priority), and print it in text form.
-                 (if (alist-ref 'highlighted options)
-                     (fmt #t (print-task-as-highlighted configuration (car tasks)) nl)
-                     (print (task->string (car tasks))))
-                 (print "No tasks to do next.")))]
-          [("edit") () _ "Open your todo file in $EDITOR"
-           (edit todo-file)]
-          (("inbox" "in") ((args:make-option (style) (required: "STYLE") "set the listing style")) action-args "View task inbox with optional filter (action-args)."
-           ;; Similar to ls and next, but the standard task filter is replaced with one that simply filters by tasks that are marked as inbox items
-           (let [(tasks (filter task-inbox tasks))
-                 (configuration (if (alist-ref 'style options)
-                                    (cons (cons 'list-style (alist-ref 'style options)) configuration)
-                                    configuration))]
-             (print-tasks configuration tasks)))
-          (("refile") () (ids) "Refile (remove inbox item status of) task at id."
-           ;; Overwrite the existing todo file, where the task at id is changed such that it no longer has an inbox status
-           (let [(ids (as-ids ids))]
-             (if (valid-ids ids)
-                 (overwrite-file todo-file (format-tasks-as-file (with-tasks-at-ids tasks ids
-                                                                                    (cut update-task <> inbox: #f
-                                                                                         date: (current-date)
-                                                                                         ))))
-                 (invalid-id-err id))))
-          (("listproj" "lsprj") () _ "List all projects in task list."
-           ;; List all the projects that are present in any task on the todo list
-           (print-application (list-unique-properties tasks task-project) identity "\n"))
-          (("listcon" "lsc") () _ "List all contexts in task list."
-           ;; List all the contexts that are present in any task on the todo list
-           (print-application (list-unique-properties tasks task-context) identity "\n"))
-          (("rm" "del") () (qualifier) "Remove task(s) at id(s)."
-           ;; Delete id or ids in todo list, overwriting the original todo file
-           (let ((selector (parse selector qualifier)))
-             (overwrite-file todo-file (format-tasks-as-file
-                                        (remove selector tasks)))))
-          (("revive") () (qualifier) "Unmark a completed task as completed."
-           (let ((selector (parse selector qualifier)))
-             (let ((selected-tasks (filter selector done-tasks)))
-               (overwrite-file done-file (format-tasks-as-file
-                                          (remove (cut member <> selected-tasks)  done-tasks)))
-               (write-to-a-file todo-file (format-tasks-as-file (map (cut update-task <> done: #f completed-date: #f) selected-tasks))))))
-          (("replace") () (id . todo) "Replace task at id with todo."
-           ;; Replace the todo at id with new text todo, overwriting the original todo file. Equivalent to todo rm and then todo add.
-           (let ((id (string->number id)))
-             (if id
-                 (overwrite-file todo-file (fmt #f
-                                                (dsp
-                                                 (format-tasks-as-file
-                                                  ;; remove the original todo first.
-                                                  (remove (lambda (task)
-                                                            (= (task-id task) id)) tasks)))
-                                                ;; Append to the end of the file.
-                                                (string-join todo " ")
-                                                nl))
-                 (invalid-id-err id))))
-          (("property-modify" "pmod" "pm") () (id key value) "Modify the value of property whose key is key, of task at id."
-           (let ((id (string->number id))
-                 (key (string->symbol key)))
-             (cond
-              [(not (valid-property-value value)) (err "Invalid property value" value)]
-              [(not id) (invalid-id-err id)]
-              [#t (overwrite-file todo-file (format-tasks-as-file (with-task-at-id tasks id
-                                                                                   (lambda (t)
-                                                                                     (update-task t
-                                                                                                  ;; the property is first removed from the property alist, and then consed to the front.
-                                                                                                  property: (cons (cons key value) (rm-prop key (task-property t))))))))])))
-          (("property-remove" "prm" "pr") () (id key) "Remove property whose key is key from task at id."
-           (let ((id (string->number id))
-                 (key (string->symbol key)))
-             (if id
-                 ;; Remove an property of a todo
-                 (overwrite-file todo-file (format-tasks-as-file (with-task-at-id tasks id
-                                                                                  (lambda (t)
-                                                                                    (update-task t
-                                                                                                 property: (rm-prop key (task-property t)))))))
-                 (invalid-id-err id))))
+          (define-options args
+            [("list" "ls" "listall") ((args:make-option (style) (required: "STYLE") "set the listing style")
+                                      (args:make-option (by-property) (required: "PROP") "Make tree based on PROPERTY (e.g context, project)")) action-args "List todo items based on an optional filter (action-args)."
+                                      (let ((task-count (+ (length tasks) (if (equal? action "listall") ;; If the user is trying to list done tasks, they should be included in the count.
+                                                                              (length done-tasks)
+                                                                              0)))
+                                            ;; Tasks are filtered using the standard task filter, and then sorted by their priority
+                                            (tasks (sort (filter (standard-task-filter (string-join action-args " ") (equal? action "listall"))
+                                                                 (append tasks done-tasks)) (apply sort-by (assoc-v 'sorting configuration))))
+                                            (configuration (foldr (cut maybe-cons <> <> (o identity cdr))
+                                                                  configuration
+                                                                  (list (cons 'list-style (alist-ref 'style options)) (cons 'tree-property (alist-ref 'by-property options))))))
+                                        (print-tasks configuration tasks)
+                                        (fmt #t
+                                             "---" nl
+                                             (length tasks) " out of " task-count " task" (if (= task-count 1)
+                                                                                              ""
+                                                                                              "s") " shown." nl))]
 
-          (("add" "a") () action-args "Add task."
-           ;; Simple append text passed as the arguments to a file.
-           (write-to-a-file todo-file (task->string
-                                       (update-task (new-task)
-                                                    date: (current-date)
-                                                    text: (string-join action-args " ")))))
-          (("capture" "c") () action-args "Capture (add to inbox) a task."
-           ;; Capture a todo as an inbox item directly
-           (write-to-a-file todo-file (task->string
-                                       (update-task (new-task)
-                                                   inbox: #t
-                                                   date: (current-date)
-                                                   text: (string-join action-args " ")))))
-
-          (("cat" "cat-all") () _ "Dumb print all tasks."
-           ;; Print the raw text contents of either the todo.txt file, or done.txt file
-           (if (equal? action "cat")
-               (print (read-all todo-file))
-               (print (read-all todo-file) "\n" (read-all done-file))))
-          (("open" "o") () (id) "Open an attachment for task at id."
-           ;; Open the attachments of a todo at id, prompting for file selection if necessary
-           (let* [(id (string->number id))
-                  ;; Get selected task
-                  (selected-task (find (lambda (t) (equal? id (task-id t))) tasks))
-                  ;; The attachments are stored in the attach property of the task
-                  (attachments (if selected-task (assoc-v 'attach (task-property selected-task)) #f))]
-             (cond
-              ;; Invalid id or id is out of bounds
-              [(or (not id) (not selected-task)) (invalid-id-err id)]
-              ;; Attachments is a garbage value, i.e not a list of strings or not a string
-              [(not (or (string? attachments) (and (list? attachments) (every string? attachments)))) (fmt #t (fmt-bold (fmt-red "Invalid attachment(s): ")) (property-value->string attachments) nl)]
-              ;; If only one attachment, assume the user intends to open it and don't bug them
-              [(string? attachments) (open attachments)]
-              ;; No attachments, therefore just print that none were found.
-              [(null-list? attachments) (fmt #t "No attachments found for the selected task." nl)]
-              [#t (let [(attachment-pair
-                         ;; Pair the attachments with a number to represent them for user selection
-                         ;; E.g A list '(file1.txt file2.txt) would become '((1 file1.txt) (2 file2.txt))
-                         (zip (map (cut + 1 <>) (iota (length attachments))) attachments))]
-                    (fmt #t (fmt-join (lambda (attachment)
-                                        ;; Convert the now paired attachments into a string form, e.g '(1 file1.txt) -> "1. file1.txt"
-                                        (dsp (string-append (->string (car attachment)) ". " (cadr attachment)))) attachment-pair "\n")
-                         nl
-                         "Select attachment [1-" (length attachments) "]: ")
-                    (let [(in (string->number (read-line)))]
-                      ;; Open the attachment at id in, read from stdin
-                      (open (cadr (find (lambda (attachment) (equal? (car attachment) in)) attachment-pair)))))])))
-          (("done" "do" "mark" "complete" "tick") () (qualifier) "Mark task as done."
-           (let ((selector (parse selector qualifier)))
-             (begin
-               ;; Append marked tasks to done file
-               (write-to-a-file done-file (format-tasks-as-file
-                                           (remove
-                                            ;; Remove all tasks that aren't done, thus isolated the newly updated tasks
-                                            (complement task-done)
-                                            ;; Update tasklist, marking the selected ids as done.
-                                            (with-tasks-at-selector tasks selector (lambda (t) (update-task t done: #t inbox: #f
-                                                                                                            date: (or (task-date t) (current-date))
-                                                                                                            completed-date: (current-date)))))))
-               ;; Overwrite the original todo file, removing the newly marked todo items unless a recur property prevents them
+            [("next") ((args:make-option (highlighted) #:none "highlight next action")) action-args "Select the next most urgent task matching an optional filter (action-args)."
+             (let [(tasks (sort (filter (standard-task-filter (string-join action-args " " ) #f) tasks) (apply sort-by (assoc-v 'sorting configuration))))]
+               (if tasks
+                   ;; Pop off the top task (because of the sorting this is also the highest priority), and print it in text form.
+                   (if (alist-ref 'highlighted options)
+                       (fmt #t (print-task-as-highlighted configuration (car tasks)) nl)
+                       (print (task->string (car tasks))))
+                   (print "No tasks to do next.")))]
+            [("edit") () _ "Open your todo file in $EDITOR"
+             (edit todo-file)]
+            (("inbox" "in") ((args:make-option (style) (required: "STYLE") "set the listing style")) action-args "View task inbox with optional filter (action-args)."
+             ;; Similar to ls and next, but the standard task filter is replaced with one that simply filters by tasks that are marked as inbox items
+             (let [(tasks (filter task-inbox tasks))
+                   (configuration (if (alist-ref 'style options)
+                                      (cons (cons 'list-style (alist-ref 'style options)) configuration)
+                                      configuration))]
+               (print-tasks configuration tasks)))
+            (("refile") () (ids) "Refile (remove inbox item status of) task at id."
+             ;; Overwrite the existing todo file, where the task at id is changed such that it no longer has an inbox status
+             (let [(ids (as-ids ids))]
+               (if (valid-ids ids)
+                   (overwrite-file todo-file (format-tasks-as-file (with-tasks-at-ids tasks ids
+                                                                                      (cut update-task <> inbox: #f
+                                                                                           date: (current-date)
+                                                                                           ))))
+                   (invalid-id-err id))))
+            (("listproj" "lsprj") () _ "List all projects in task list."
+             ;; List all the projects that are present in any task on the todo list
+             (print-application (list-unique-properties tasks task-project) identity "\n"))
+            (("listcon" "lsc") () _ "List all contexts in task list."
+             ;; List all the contexts that are present in any task on the todo list
+             (print-application (list-unique-properties tasks task-context) identity "\n"))
+            (("rm" "del") () (qualifier) "Remove task(s) at id(s)."
+             ;; Delete id or ids in todo list, overwriting the original todo file
+             (let ((selector (parse selector qualifier)))
                (overwrite-file todo-file (format-tasks-as-file
-                                          ;; Schedule a new todo item in the future for all todos at ids that have a recur property
-                                          (with-tasks-at-selector
-                                           (remove (lambda (task)
-                                                     ;; Remove only task from the todo list only if
-                                                     ;; That task is one of the selected tasks from the user
-                                                     ;; That task also does not have a recur property.
-                                                     (and (selector task)
-                                                          (not (assoc 'recur (task-property task))))) tasks)
-                                           selector
-                                           (lambda (t)
-                                             ;; If the task has a due date and a recur property
-                                             (if (and (assoc 'recur (task-property t)) (assoc 'due (task-property t)) (date? (assoc-v 'due (task-property t))) (time? (assoc-v 'recur (task-property t))))
-                                                 ;; Add the value of the recur property to the due date of the task and return that new task
-                                                 (begin
-                                                   (fmt #t (fmt-unicode (fmt-bold "Task is recurrent, adding another in the future") nl) )
-                                                   (task-due-add t (assoc-v 'recur (task-property t))))
-                                                 ;; Otherwise just return the same task untouched
-                                                 t))))))))
-          (("recently") ((args:make-option (duration d) (required: "DRTN") "set the duration that counts as recent")
-                         (args:make-option (style) (required: "STYLE") "set the style to print recent tasks in")) _ "View recently completed tasks."
-           (let* [(duration (if (or (not (alist-ref 'duration options)) (not (parse duration (alist-ref 'duration options))))
-                                (make-duration days: 7)
-                                (parse duration (alist-ref 'duration options))))
-                  (tasks (filter (lambda (task)
-                                   (and (task-completed-date task) (< (time->days (date-cmp-now (task-completed-date task))) (time->days duration)))) done-tasks))
-                  (configuration (if (alist-ref 'style options)
-                                     (cons (cons 'list-style (alist-ref 'style options)) configuration)
-                                     configuration))]
-             (fmt #t "Showing completed tasks for the last " (or (alist-ref 'duration options) "week") "." nl)
-             (print-tasks configuration tasks)))
-          (("stagnant" "old" "stuck") ((args:make-option (duration d) (required: "DRTN") "set the duration that counts as recent")
-                                       (args:make-option (style) (required: "STYLE") "set the style to print recent tasks in")) _ "View old unfinished tasks"
-           (let* [(duration (if (or (not (alist-ref 'duration options)) (not (parse duration (alist-ref 'duration options))))
-                                (make-duration days: 7)
-                                (parse duration (alist-ref 'duration options))))
-                  (tasks (filter (lambda (task)
-                                   (and (task-date task)
-                                        (> (time->days (date-cmp-now (task-date task))) (time->days duration)))) tasks))
-                  (configuration (if (alist-ref 'style options)
-                                     (cons (cons 'list-style (alist-ref 'style options)) configuration)
-                                     configuration))]
-             (fmt #t "Showing tasks older than " (or (alist-ref 'duration options) "a week") "." nl)
-             (print-tasks configuration tasks)))
-          (("bump" "promote") () (qualifier) "Bump (raise task priority by one) task."
-           (let ((selector (parse selector qualifier)))
-             ;; Cycle the priority of the tasks upwards with ids in ids, giving them a priority of A if they don't already have one
-             (overwrite-file todo-file (format-tasks-as-file (with-tasks-at-selector tasks selector (cut cycle-priority <> - #\A))))))
-          (("curb" "demote") () (qualifier) "Curb (lower task priority by one) task."
-           (let ((selector (parse selector qualifier)))
-             ;; Cycle the priority of the tasks downwards with ids in ids, giving them a priority of Z if they don't already have one
-             (overwrite-file todo-file (format-tasks-as-file (with-tasks-at-selector tasks selector (cut cycle-priority <> + #\Z))))))
-          (("add-context" "ac") () (qualifier context) "Add context to a task."
-           (let ((selector (parse selector qualifier)))
-             ;; Add a context to a todo item
-             (overwrite-file todo-file (format-tasks-as-file (with-tasks-at-selector tasks selector
-                                                                                (cut add-to-todo <> 'context task-context context))))))
-          (("rm-context" "rc") () (qualifier context) "Remove a context from a task."
-           (let ((selector (parse selector qualifier)))
-             ;; Remove a context to a todo item
-             (overwrite-file todo-file (format-tasks-as-file (with-tasks-at-selector tasks selector
-                                                                                     (cut remove-from-todo <> 'context task-context context))))))
+                                          (remove selector tasks)))))
+            (("revive") () (qualifier) "Unmark a completed task as completed."
+             (let ((selector (parse selector qualifier)))
+               (let ((selected-tasks (filter selector done-tasks)))
+                 (overwrite-file done-file (format-tasks-as-file
+                                            (remove (cut member <> selected-tasks)  done-tasks)))
+                 (write-to-a-file todo-file (format-tasks-as-file (map (cut update-task <> done: #f completed-date: #f) selected-tasks))))))
+            (("replace") () (id . todo) "Replace task at id with todo."
+             ;; Replace the todo at id with new text todo, overwriting the original todo file. Equivalent to todo rm and then todo add.
+             (let ((id (string->number id)))
+               (if id
+                   (overwrite-file todo-file (fmt #f
+                                                  (dsp
+                                                   (format-tasks-as-file
+                                                    ;; remove the original todo first.
+                                                    (remove (lambda (task)
+                                                              (= (task-id task) id)) tasks)))
+                                                  ;; Append to the end of the file.
+                                                  (string-join todo " ")
+                                                  nl))
+                   (invalid-id-err id))))
+            (("property-modify" "pmod" "pm") () (id key value) "Modify the value of property whose key is key, of task at id."
+             (let ((id (string->number id))
+                   (key (string->symbol key)))
+               (cond
+                [(not (valid-property-value value)) (err "Invalid property value" value)]
+                [(not id) (invalid-id-err id)]
+                [#t (overwrite-file todo-file (format-tasks-as-file (with-task-at-id tasks id
+                                                                                     (lambda (t)
+                                                                                       (update-task t
+                                                                                                    ;; the property is first removed from the property alist, and then consed to the front.
+                                                                                                    property: (cons (cons key value) (rm-prop key (task-property t))))))))])))
+            (("property-remove" "prm" "pr") () (id key) "Remove property whose key is key from task at id."
+             (let ((id (string->number id))
+                   (key (string->symbol key)))
+               (if id
+                   ;; Remove an property of a todo
+                   (overwrite-file todo-file (format-tasks-as-file (with-task-at-id tasks id
+                                                                                    (lambda (t)
+                                                                                      (update-task t
+                                                                                                   property: (rm-prop key (task-property t)))))))
+                   (invalid-id-err id))))
 
-           (("add-project" "ap") () (qualifier project) "Add a project to a task."
-            (let ((selector (parse selector qualifier)))
-              ;; Add a project to a todo item
-              (overwrite-file todo-file (format-tasks-as-file (with-tasks-at-selector tasks selector
-                                                                                      (cut add-to-todo <> 'project task-project project))))))
-           (("rm-project" "rp") () (qualifier project) "Remove a project from task."
-            (let ((selector (parse selector qualifier)))
-              ;; Remove a project to a todo item
-              (overwrite-file todo-file (format-tasks-as-file (with-tasks-at-selector tasks selector
-                                                                                 (cut remove-from-todo <> 'project task-project project))))))
-           (("log") () action-args "Log (add a task marked already as completed) a task."
-            ;; Add a todo to the done file, marked as done (logging that you've done something so to speak).
-            (write-to-a-file done-file (string-append "x " (string-join action-args " "))))
-           (("pri") () (qualifier new-priority) "Set the priority of a task."
-            ;; Set the priority of a todo item
-            (let ((selector (parse selector qualifier)))
-              (if (or (equal? new-priority "-") (irregex-match "[A-Z]" (format #f "~a" new-priority)))
-                  ;; Update the priority of the todo item
-                  ;; New priority can either be an uppercase character, or "-" which resets the priority.
-                  (overwrite-file todo-file (format-tasks-as-file (with-tasks-at-selector tasks selector
-                                                                                          (cut update-task <> priority: (if (equal? new-priority "-")
-                                                                                                                            #f ;; false equates to no priority internally
-                                                                                                                            new-priority)))))
-                  ;; Let the user know that it is an invalid priority
-                  (err "Invalid Priority" new-priority))))))
+            (("add" "a") () action-args "Add task."
+             ;; Simple append text passed as the arguments to a file.
+             (write-to-a-file todo-file (task->string
+                                         (update-task (new-task)
+                                                      date: (current-date)
+                                                      text: (string-join action-args " ")))))
+            (("capture" "c") () action-args "Capture (add to inbox) a task."
+             ;; Capture a todo as an inbox item directly
+             (write-to-a-file todo-file (task->string
+                                         (update-task (new-task)
+                                                      inbox: #t
+                                                      date: (current-date)
+                                                      text: (string-join action-args " ")))))
+
+            (("cat" "cat-all") () _ "Dumb print all tasks."
+             ;; Print the raw text contents of either the todo.txt file, or done.txt file
+             (if (equal? action "cat")
+                 (print (read-all todo-file))
+                 (print (read-all todo-file) "\n" (read-all done-file))))
+            (("open" "o") () (id) "Open an attachment for task at id."
+             ;; Open the attachments of a todo at id, prompting for file selection if necessary
+             (let* [(id (string->number id))
+                    ;; Get selected task
+                    (selected-task (find (lambda (t) (equal? id (task-id t))) tasks))
+                    ;; The attachments are stored in the attach property of the task
+                    (attachments (if selected-task (assoc-v 'attach (task-property selected-task)) #f))]
+               (cond
+                ;; Invalid id or id is out of bounds
+                [(or (not id) (not selected-task)) (invalid-id-err id)]
+                ;; Attachments is a garbage value, i.e not a list of strings or not a string
+                [(not (or (string? attachments) (and (list? attachments) (every string? attachments)))) (fmt #t (fmt-bold (fmt-red "Invalid attachment(s): ")) (property-value->string attachments) nl)]
+                ;; If only one attachment, assume the user intends to open it and don't bug them
+                [(string? attachments) (open attachments)]
+                ;; No attachments, therefore just print that none were found.
+                [(null-list? attachments) (fmt #t "No attachments found for the selected task." nl)]
+                [#t (let [(attachment-pair
+                           ;; Pair the attachments with a number to represent them for user selection
+                           ;; E.g A list '(file1.txt file2.txt) would become '((1 file1.txt) (2 file2.txt))
+                           (zip (map (cut + 1 <>) (iota (length attachments))) attachments))]
+                      (fmt #t (fmt-join (lambda (attachment)
+                                          ;; Convert the now paired attachments into a string form, e.g '(1 file1.txt) -> "1. file1.txt"
+                                          (dsp (string-append (->string (car attachment)) ". " (cadr attachment)))) attachment-pair "\n")
+                           nl
+                           "Select attachment [1-" (length attachments) "]: ")
+                      (let [(in (string->number (read-line)))]
+                        ;; Open the attachment at id in, read from stdin
+                        (open (cadr (find (lambda (attachment) (equal? (car attachment) in)) attachment-pair)))))])))
+            (("done" "do" "mark" "complete" "tick") () (qualifier) "Mark task as done."
+             (let ((selector (parse selector qualifier)))
+               (begin
+                 ;; Append marked tasks to done file
+                 (write-to-a-file done-file (format-tasks-as-file
+                                             (remove
+                                              ;; Remove all tasks that aren't done, thus isolated the newly updated tasks
+                                              (complement task-done)
+                                              ;; Update tasklist, marking the selected ids as done.
+                                              (with-tasks-at-selector tasks selector (lambda (t) (update-task t done: #t inbox: #f
+                                                                                                              date: (or (task-date t) (current-date))
+                                                                                                              completed-date: (current-date)))))))
+                 ;; Overwrite the original todo file, removing the newly marked todo items unless a recur property prevents them
+                 (overwrite-file todo-file (format-tasks-as-file
+                                            ;; Schedule a new todo item in the future for all todos at ids that have a recur property
+                                            (with-tasks-at-selector
+                                             (remove (lambda (task)
+                                                       ;; Remove only task from the todo list only if
+                                                       ;; That task is one of the selected tasks from the user
+                                                       ;; That task also does not have a recur property.
+                                                       (and (selector task)
+                                                            (not (assoc 'recur (task-property task))))) tasks)
+                                             selector
+                                             (lambda (t)
+                                               ;; If the task has a due date and a recur property
+                                               (if (and (assoc 'recur (task-property t)) (assoc 'due (task-property t)) (date? (assoc-v 'due (task-property t))) (time? (assoc-v 'recur (task-property t))))
+                                                   ;; Add the value of the recur property to the due date of the task and return that new task
+                                                   (begin
+                                                     (fmt #t (fmt-unicode (fmt-bold "Task is recurrent, adding another in the future") nl) )
+                                                     (task-due-add t (assoc-v 'recur (task-property t))))
+                                                   ;; Otherwise just return the same task untouched
+                                                   t))))))))
+            (("recently") ((args:make-option (duration d) (required: "DRTN") "set the duration that counts as recent")
+                           (args:make-option (style) (required: "STYLE") "set the style to print recent tasks in")) _ "View recently completed tasks."
+                           (let* [(duration (if (or (not (alist-ref 'duration options)) (not (parse duration (alist-ref 'duration options))))
+                                                (make-duration days: 7)
+                                                (parse duration (alist-ref 'duration options))))
+                                  (tasks (filter (lambda (task)
+                                                   (and (task-completed-date task) (< (time->days (date-cmp-now (task-completed-date task))) (time->days duration)))) done-tasks))
+                                  (configuration (if (alist-ref 'style options)
+                                                     (cons (cons 'list-style (alist-ref 'style options)) configuration)
+                                                     configuration))]
+                             (fmt #t "Showing completed tasks for the last " (or (alist-ref 'duration options) "week") "." nl)
+                             (print-tasks configuration tasks)))
+            (("stagnant" "old" "stuck") ((args:make-option (duration d) (required: "DRTN") "set the duration that counts as recent")
+                                         (args:make-option (style) (required: "STYLE") "set the style to print recent tasks in")) _ "View old unfinished tasks"
+                                         (let* [(duration (if (or (not (alist-ref 'duration options)) (not (parse duration (alist-ref 'duration options))))
+                                                              (make-duration days: 7)
+                                                              (parse duration (alist-ref 'duration options))))
+                                                (tasks (filter (lambda (task)
+                                                                 (and (task-date task)
+                                                                      (> (time->days (date-cmp-now (task-date task))) (time->days duration)))) tasks))
+                                                (configuration (if (alist-ref 'style options)
+                                                                   (cons (cons 'list-style (alist-ref 'style options)) configuration)
+                                                                   configuration))]
+                                           (fmt #t "Showing tasks older than " (or (alist-ref 'duration options) "a week") "." nl)
+                                           (print-tasks configuration tasks)))
+            (("bump" "promote") () (qualifier) "Bump (raise task priority by one) task."
+             (let ((selector (parse selector qualifier)))
+               ;; Cycle the priority of the tasks upwards with ids in ids, giving them a priority of A if they don't already have one
+               (overwrite-file todo-file (format-tasks-as-file (with-tasks-at-selector tasks selector (cut cycle-priority <> - #\A))))))
+            (("curb" "demote") () (qualifier) "Curb (lower task priority by one) task."
+             (let ((selector (parse selector qualifier)))
+               ;; Cycle the priority of the tasks downwards with ids in ids, giving them a priority of Z if they don't already have one
+               (overwrite-file todo-file (format-tasks-as-file (with-tasks-at-selector tasks selector (cut cycle-priority <> + #\Z))))))
+            (("add-context" "ac") () (qualifier context) "Add context to a task."
+             (let ((selector (parse selector qualifier)))
+               ;; Add a context to a todo item
+               (overwrite-file todo-file (format-tasks-as-file (with-tasks-at-selector tasks selector
+                                                                                       (cut add-to-todo <> 'context task-context context))))))
+            (("rm-context" "rc") () (qualifier context) "Remove a context from a task."
+             (let ((selector (parse selector qualifier)))
+               ;; Remove a context to a todo item
+               (overwrite-file todo-file (format-tasks-as-file (with-tasks-at-selector tasks selector
+                                                                                       (cut remove-from-todo <> 'context task-context context))))))
+
+            (("add-project" "ap") () (qualifier project) "Add a project to a task."
+             (let ((selector (parse selector qualifier)))
+               ;; Add a project to a todo item
+               (overwrite-file todo-file (format-tasks-as-file (with-tasks-at-selector tasks selector
+                                                                                       (cut add-to-todo <> 'project task-project project))))))
+            (("rm-project" "rp") () (qualifier project) "Remove a project from task."
+             (let ((selector (parse selector qualifier)))
+               ;; Remove a project to a todo item
+               (overwrite-file todo-file (format-tasks-as-file (with-tasks-at-selector tasks selector
+                                                                                       (cut remove-from-todo <> 'project task-project project))))))
+            (("log") () action-args "Log (add a task marked already as completed) a task."
+             ;; Add a todo to the done file, marked as done (logging that you've done something so to speak).
+             (write-to-a-file done-file (string-append "x " (string-join action-args " "))))
+            (("pri") () (qualifier new-priority) "Set the priority of a task."
+             ;; Set the priority of a todo item
+             (let ((selector (parse selector qualifier)))
+               (if (or (equal? new-priority "-") (irregex-match "[A-Z]" (format #f "~a" new-priority)))
+                   ;; Update the priority of the todo item
+                   ;; New priority can either be an uppercase character, or "-" which resets the priority.
+                   (overwrite-file todo-file (format-tasks-as-file (with-tasks-at-selector tasks selector
+                                                                                           (cut update-task <> priority: (if (equal? new-priority "-")
+                                                                                                                             #f ;; false equates to no priority internally
+                                                                                                                             new-priority)))))
+                   ;; Let the user know that it is an invalid priority
+                   (err "Invalid Priority" new-priority))))
+            (("sed") ((args:make-option (d done) #:none "Perform action on done file")) expression "Run sed over either the todo.txt or done.txt files in your todo directory"
+             (system (string-append "sed -i '" (shell-escape (string-join expression " ")) "' " (if (alist-ref 'done options) done-file todo-file))))))
         (err "Todo file invalid: " (cat "Todo file at " todo-dir " is missing, damaged, or otherwise unreadable.")))))
 (let [(args (argv))]
   (run (or (parse link (string-join (cdr args) " ")) (cdr args))))
