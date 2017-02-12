@@ -574,7 +574,9 @@
                    ;; Let the user know that it is an invalid priority
                    (err "Invalid Priority" new-priority))))
             (("sed") ((args:make-option (d done) #:none "Perform action on done file")) expression "Run sed over either the todo.txt or done.txt files in your todo directory"
-             (system (string-append "sed -i '" (shell-escape (string-join expression " ")) "' " (if (alist-ref 'done options) done-file todo-file))))))
+             (system (string-append "sed -i '" (shell-escape (string-join expression " ")) "' " (if (alist-ref 'done options) done-file todo-file))))
+            (("git") () cli "Manage your todo directory with git"
+             (system (string-append "git " (string-join cli " "))))))
         (err "Todo file invalid: " (cat "Todo file at " todo-dir " is missing, damaged, or otherwise unreadable.")))))
 (let [(args (argv))]
   (run (or (parse link (string-join (cdr args) " ")) (cdr args))))
