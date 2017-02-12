@@ -46,7 +46,7 @@
   (update-task task priority: (cond
                                ((equal? (task-priority task) default-character) default-character) ;; If the current priority is the default character, keep as is
                                ((not (task-priority task)) default-character) ;; If the task does not have a priority, add it
-                               (#t (integer->char (movement (char->integer (task-priority task)) 1)))))) ;; Otherwise manipulate the current priority with the movement function
+                               (#t (integer->char (movement (char->integer (task-priority task))))))))
 (define (add-to-todo task property property-fn value)
   ;; Add value to the beginning of a list which is the property of task, using property-fn to retrieve it's original value
   (update-task task
@@ -258,11 +258,13 @@
             (argv (car e))
             (forms (map (lambda (form) (append (list (i 'define-opt) argv) form)) (cdr e)))]
        `(begin
-          (let ((options (list ,@forms)))
-            (if (or (null-list? ,argv) (equal? (car ,argv) "subcommands"))
-                (fmt #t "Run todo <subcommand> --help to get a detailed explanation on it's usage." nl "Subcommands:" nl (fmt-join (lambda (subcommand-names) (cat (string-join subcommand-names ", ") nl))
-                                                                                                                                   (map car options)))
-                ((cdr (find (lambda (kv) (member (car ,argv) (car kv))) options))))))))))
+          (let* [(options (list ,@forms))
+                (subcommand (find (lambda (kv) (member (car ,argv) (car kv))) options))]
+            (cond
+             [(or (null-list? ,argv) (equal? (car ,argv) "subcommands")) (fmt #t "Run todo <subcommand> --help to get a detailed explanation on it's usage." nl "Subcommands:" nl (fmt-join (lambda (subcommand-names) (cat (string-join subcommand-names ", ") nl))
+                                                                                                                                                                                            (map car options)))]
+             [subcommand ((cdr subcommand))]
+             [#t (err "Invalid subcommand" (car ,argv))])))))))
 (define (task-at tasks id)
   (find (lambda (task) (= (task-id task) id)) tasks))
 (define (with-task-at-id tasks id thunk)
