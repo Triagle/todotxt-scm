@@ -3,7 +3,7 @@
 [[file:screen.png]]
 
 [[https://github.com/ginatrapani/todo.txt-cli.git][Todo.txt]] is a simple plain text file todo list, with shell script client. This
-project aims to improve of it's strengths while providing a better fit for the
+project aims to improve on it's strengths while providing a better fit for the
 GTD inclined. todo.txt-scm comes with multiple improvements over the original
 implementation, including support for due dates, recurring tasks, attachments,
 inbox items, and next actions.
