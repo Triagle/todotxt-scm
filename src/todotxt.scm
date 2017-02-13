@@ -121,9 +121,10 @@
 
   ;; This functional approach is chosen to make the todo parsing simple (as opposed to the original idea of using alists) and modular in that the parser wouldn't break
   ;; if something suddenly changed, it is simply applying functions and doesn't care about the function's operation.
-  (sequence* ((inbox (maybe inbox))
-              (p (maybe priority))
-              (d (maybe done))
+  (sequence* ((p (maybe priority))
+              (state (maybe (any-of
+                      inbox
+                      done)))
               (_ (maybe whitespace))
               (start-date (maybe (bind (sequence* ((d date)
                                                    (_ whitespace))
@@ -131,7 +132,7 @@
                                        (lambda (date)
                                          (result (cut update-task <> date: date))))))
               (t* (repeated todo until: end-of-input)))
-             (let [(fns (weed (flatten (list inbox d p start-date t*))))]
+             (let [(fns (weed (flatten (list p state start-date t*))))]
                (result (foldr (cut <> <>) (new-task) fns)))))
 (define (valid-property-value value)
   ;; return a truthy value if the value passed is considered a valid property value, and #f otherwise
