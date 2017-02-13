@@ -122,9 +122,9 @@
   ;; This functional approach is chosen to make the todo parsing simple (as opposed to the original idea of using alists) and modular in that the parser wouldn't break
   ;; if something suddenly changed, it is simply applying functions and doesn't care about the function's operation.
   (sequence* ((inbox (maybe inbox))
+              (p (maybe priority))
               (d (maybe done))
               (_ (maybe whitespace))
-              (p (maybe priority))
               (start-date (maybe (bind (sequence* ((d date)
                                                    (_ whitespace))
                                                   (result d))
@@ -198,15 +198,13 @@
 (define (task->string task)
   ;; Convert a task to a string by iterating over the task's properties and converting each to a string
   (fmt #f
-       (if (task-inbox task)
-           "* "
-           "")
-       (if (task-done task)
-           "x "
-           "")
        (if (task-priority task)
            (cat "(" (task-priority task) ") ")
            "")
+       (cond
+        [(task-inbox task) "* "]
+        [(task-done task) "x "]
+        [#t ""])
        (if (task-completed-date task) (cat (date->str (task-completed-date task)) " ") "")
        (if (task-date task) (cat (date->str (task-date task)) " ") "")
        (task-text task)
