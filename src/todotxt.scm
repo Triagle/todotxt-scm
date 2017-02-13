@@ -167,15 +167,14 @@
   (if date
       (let [(now (current-date))]
         (date-difference now date))))
-(define (task-due-add task duration)
+(define (task-due-add task duration #!key (from (current-date)))
   ;; Add days to the task's due date, or if the due date is prior to the current date, to the current date
-  (let [(task-date (assoc-v 'due (task-property task)))
-        (today (current-date))]
+  (let [(task-date (assoc-v 'due (task-property task)))]
     (if task-date
         (update-task task
                      property: (cons (cons 'due (date->str
-                                                  (date-add-duration (if (date>? today task-date)
-                                                                         today
+                                                  (date-add-duration (if (date>? from task-date)
+                                                                         from
                                                                          task-date)
                                                                      duration)))
                                      (rm-prop 'due (task-property task))))

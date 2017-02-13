@@ -576,7 +576,12 @@
             (("sed") ((args:make-option (d done) #:none "Perform action on done file")) expression "Run sed over either the todo.txt or done.txt files in your todo directory"
              (system (string-append "sed -i '" (shell-escape (string-join expression " ")) "' " (if (alist-ref 'done options) done-file todo-file))))
             (("git") () cli "Manage your todo directory with git"
-             (system (string-append "git " (string-join cli " "))))))
+             (system (string-append "git " (string-join cli " "))))
+            (("snooze" "pushback") () (qualifier snooze-duration) "Push back a task's due date by a duration"
+              (let [(selector (parse selector qualifier))
+                    (snooze-duration (parse duration snooze-duration))]
+                (overwrite-file todo-file (format-tasks-as-file (with-tasks-at-selector tasks selector
+                                                                                        (lambda (t) (task-due-add t snooze-duration from: (assoc-v 'due (task-property t)))))))))))
         (err "Todo file invalid: " (cat "Todo file at " todo-dir " is missing, damaged, or otherwise unreadable.")))))
 (let [(args (argv))]
   (run (or (parse link (string-join (cdr args) " ")) (cdr args))))
