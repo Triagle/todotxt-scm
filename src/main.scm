@@ -37,10 +37,30 @@
                        (cons 'columns (list "id" "priority" "task" "projects" "contexts" "properties"))
                        (cons 'priority-colours (list (list #\A fmt-red)))
                        (cons 'time-colours (list (list (make-duration days: 1) fmt-red)))))
-
+(define (project-summary tasks)
+  ;; Return an alist of projects and how many tasks they have
+  (let loop ((acc '())
+             (tasks tasks))
+    (b:bind-case tasks
+               [(task . tasks)
+                (loop (foldl (lambda (acc project)
+                               (let [(current-prj-task-count (assoc-v project acc default: #f))]
+                                 (cons (cons project (+ (or current-prj-task-count 0) 1)) (rm-prop project acc)))) acc (task-project task))
+                      tasks)]
+               [_ acc])))
+(define (percentage-complete todo-projects done-projects todo-project)
+  (let [(done-count (assoc-v todo-project done-projects default: 0))
+        (todo-count (assoc-v todo-project todo-projects default: 0))]
+    (cons todo-project (inexact->exact (round (* (/ done-count (+ todo-count done-count)) 100))))))
+(define (percentage-as-bars n)
+  (let [(bars (inexact->exact (round (/ n 10))))]
+    (string-append (make-string bars #\#) (make-string (- 10 bars) #\space))))
 (define (print-application list display-fn join)
   ;; Print a list of the result of display-fn on every item in list
   (fmt #t (fmt-unicode (fmt-join (o dsp display-fn) list "\n") nl)))
+(define (alist- lst1 subtractor)
+  (filter (b:bind-lambda (prj . _)
+                       (not (assoc prj subtractor))) lst1))
 (define (cycle-priority task movement default-character)
   ;; Update a task's priority, keeping it as is if it is the default-character, or changing it to the result of applying movement
   (update-task task priority: (cond
@@ -529,6 +549,27 @@
                                                                    configuration))]
                                            (fmt #t "Showing tasks older than " (or (alist-ref 'duration options) "a week") "." nl)
                                            (print-tasks configuration tasks)))
+            (("projectreview" "prrv") () _ "Review projects"
+             (let* [(done-project-alist (project-summary done-tasks))
+                   (todo-project-alist (project-summary tasks))
+                   (diff (alist- done-project-alist todo-project-alist))
+                   (percentage-report
+                    (map (b:bind-lambda (prj . _)
+                                        (percentage-complete todo-project-alist done-project-alist prj)) todo-project-alist))]
+               (fmt #t
+                    (tabular
+                     ""
+                     (fmt-join
+                      (lambda (prj) (cat (car prj) nl)) percentage-report)
+                     " "
+                     (fmt-join (lambda (prj) (cat "[" (percentage-as-bars (cdr prj)) "] " (cdr prj) "%" nl)) percentage-report)
+                     )
+
+                    nl
+                    "Projects with no outstanding tasks:"
+                    nl
+                    (fmt-join (lambda (prj) (cat (car prj) nl)) diff)
+                    )))
             (("bump" "promote") () (qualifier) "Bump (raise task priority by one) task."
              (let ((selector (parse selector qualifier)))
                ;; Cycle the priority of the tasks upwards with ids in ids, giving them a priority of A if they don't already have one
