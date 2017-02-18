@@ -46,7 +46,7 @@
   (update-task task priority: (cond
                                ((equal? (task-priority task) default-character) default-character) ;; If the current priority is the default character, keep as is
                                ((not (task-priority task)) default-character) ;; If the task does not have a priority, add it
-                               (#t (integer->char (movement (char->integer (task-priority task))))))))
+                               (#t (integer->char (movement (char->integer (task-priority task)) 1))))))
 (define (add-to-todo task property property-fn value)
   ;; Add value to the beginning of a list which is the property of task, using property-fn to retrieve it's original value
   (update-task task
