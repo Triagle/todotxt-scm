@@ -174,6 +174,7 @@
 (define tree-property-set
   (list
    (cons "project" task-project)
+   (cons "state" task-state)
    (cons "context" task-context)))
 (define (print-tasks-as-tree configuration tasks)
   (let [(tree-property (assoc-v (assoc-v 'tree-property configuration) tree-property-set))]
@@ -300,7 +301,7 @@
          (if (selector task)
              (thunk task)
              task)) tasks))
-(define (standard-task-filter filter-args show-all?)
+(define (standard-task-filter filter-args show-all? #!key (state #f))
   ;; Returns a function that can be passed to filter
   ;; It by default filters out inbox items, as well as done items
   ;; The show-all? boolean can be used to control whether done items are shown as well
@@ -312,6 +313,7 @@
     ;; Match the fuzzy filter (basic substring search) on the string representation of the task
     ;; String representation is like "(A) task @context +project key:value", or as shown in the todo.txt file
     (and (not (task-inbox x))
+         (or (not state) (member state (task-state x)))
          (or show-all? (not (task-done x)) )
          (or (zero? (string-length filter-args))
              ;; Fuzzy match
@@ -349,12 +351,16 @@
         (let ((done-tasks (map (lambda (task) (update-task task id: (+ (length tasks) (task-id task)))) done-tasks)))
           (define-options args
             [("list" "ls" "listall") ((args:make-option (style) (required: "STYLE") "set the listing style")
-                                      (args:make-option (by-property) (required: "PROP") "Make tree based on PROPERTY (e.g context, project)")) action-args "List todo items based on an optional filter (action-args)."
+                                      (args:make-option (by-property) (required: "PROP") "Make tree based on PROPERTY (e.g context, project, state)")
+                                      (args:make-option (state) (required: "STATE") "Only find todo items in state STATE")) action-args "List todo items based on an optional filter (action-args)."
                                       (let ((task-count (+ (length tasks) (if (equal? action "listall") ;; If the user is trying to list done tasks, they should be included in the count.
                                                                               (length done-tasks)
                                                                               0)))
                                             ;; Tasks are filtered using the standard task filter, and then sorted by their priority
-                                            (tasks (sort (filter (standard-task-filter (string-join action-args " ") (equal? action "listall"))
+                                            (tasks (sort (filter (standard-task-filter (string-join action-args " ") (equal? action "listall")
+                                                                                       state: (if (alist-ref 'state options)
+                                                                                                  (string->symbol (alist-ref 'state options))
+                                                                                                  #f))
                                                                  (append tasks done-tasks)) (apply sort-by (assoc-v 'sorting configuration))))
                                             (configuration (foldr (cut maybe-cons <> <> (o identity cdr))
                                                                   configuration
@@ -383,11 +389,11 @@
                                       (cons (cons 'list-style (alist-ref 'style options)) configuration)
                                       configuration))]
                (print-tasks configuration tasks)))
-            (("refile") () (ids) "Refile (remove inbox item status of) task at id."
+            (("refile") () (qualifier) "Refile (remove inbox item status of) task at id."
              ;; Overwrite the existing todo file, where the task at id is changed such that it no longer has an inbox status
-             (let [(ids (as-ids ids))]
-               (if (valid-ids ids)
-                   (overwrite-file todo-file (format-tasks-as-file (with-tasks-at-ids tasks ids
+             (let [(qualifier (parse selector qualifier))]
+               (if qualifier
+                   (overwrite-file todo-file (format-tasks-as-file (with-tasks-at-selector tasks qualifier
                                                                                       (cut update-task <> inbox: #f
                                                                                            date: (current-date)
                                                                                            ))))

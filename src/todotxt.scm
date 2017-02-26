@@ -251,4 +251,10 @@
    [(equal? (assoc-v property (task-property a)) (assoc-v property (task-property b))) 'equal]
    [#t (property<? (assoc-v property (task-property a)) (assoc-v property (task-property b)))])
   )
+(define (task-state task)
+  (let [(state (assoc-v 'state (task-property task)
+                        default: (if (task-done task)
+                                     '("complete")
+                                     '("todo"))))]
+    (map string->symbol (if (list? state) state (list state)))))
 ;; Todo list manipulation
