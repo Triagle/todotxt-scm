@@ -42,12 +42,12 @@
   (let loop ((acc '())
              (tasks tasks))
     (b:bind-case tasks
-               [(task . tasks)
-                (loop (foldl (lambda (acc project)
-                               (let [(current-prj-task-count (assoc-v project acc default: #f))]
-                                 (cons (cons project (+ (or current-prj-task-count 0) 1)) (rm-prop project acc)))) acc (task-project task))
-                      tasks)]
-               [_ acc])))
+                 [(task . tasks)
+                  (loop (foldl (lambda (acc project)
+                                 (let [(current-prj-task-count (assoc-v project acc default: #f))]
+                                   (cons (cons project (+ (or current-prj-task-count 0) 1)) (rm-prop project acc)))) acc (task-project task))
+                        tasks)]
+                 [_ acc])))
 (define (percentage-complete todo-projects done-projects todo-project)
   (let [(done-count (assoc-v todo-project done-projects default: 0))
         (todo-count (assoc-v todo-project todo-projects default: 0))]
@@ -60,7 +60,7 @@
   (fmt #t (fmt-unicode (fmt-join (o dsp display-fn) list "\n") nl)))
 (define (alist- lst1 subtractor)
   (filter (b:bind-lambda (prj . _)
-                       (not (assoc prj subtractor))) lst1))
+                         (not (assoc prj subtractor))) lst1))
 (define (cycle-priority task movement default-character)
   ;; Update a task's priority, keeping it as is if it is the default-character, or changing it to the result of applying movement
   (update-task task priority: (cond
@@ -280,7 +280,7 @@
             (forms (map (lambda (form) (append (list (i 'define-opt) argv) form)) (cdr e)))]
        `(begin
           (let* [(options (list ,@forms))
-                (subcommand (find (lambda (kv) (member (car ,argv) (car kv))) options))]
+                 (subcommand (find (lambda (kv) (member (car ,argv) (car kv))) options))]
             (cond
              [(or (null-list? ,argv) (equal? (car ,argv) "subcommands")) (fmt #t "Run todo <subcommand> --help to get a detailed explanation on it's usage." nl "Subcommands:" nl (fmt-join (lambda (subcommand-names) (cat (string-join subcommand-names ", ") nl))
                                                                                                                                                                                             (map car options)))]
@@ -301,7 +301,7 @@
          (if (selector task)
              (thunk task)
              task)) tasks))
-(define (standard-task-filter filter-args show-all? #!key (state #f))
+(define (standard-task-filter filter-args show-all? #!key (state #f) (or-filter '()) (invert #f))
   ;; Returns a function that can be passed to filter
   ;; It by default filters out inbox items, as well as done items
   ;; The show-all? boolean can be used to control whether done items are shown as well
@@ -315,9 +315,10 @@
     (and (not (task-inbox x))
          (or (not state) (member state (task-state x)))
          (or show-all? (not (task-done x)) )
-         (or (zero? (string-length filter-args))
-             ;; Fuzzy match
-             (substring-index filter-args (task->string x))))))
+         ((if invert not identity)
+          (or (zero? (string-length filter-args))
+              ;; Fuzzy match
+              (find (cut substring-index <> (task->string x)) (cons filter-args or-filter)))))))
 (define (get-applicable-todo-directory . fallback-dirs)
   ;; Return the first directory in the list (if any) that has a todo.txt file.
   ;; The list always contains the current directory, with the supplied arguments being fallbacks.
@@ -345,6 +346,7 @@
          (tasks (parse-filename todo-file))
          ;; Path representation of the done.txt file
          (done-file (string-append todo-dir "done.txt"))
+         (extra-filters '())
          ;; The parsed done.txt file
          (done-tasks (parse-filename done-file)))
     (if (and tasks done-tasks)
@@ -352,7 +354,10 @@
           (define-options args
             [("list" "ls" "listall") ((args:make-option (style) (required: "STYLE") "set the listing style")
                                       (args:make-option (by-property) (required: "PROP") "Make tree based on PROPERTY (e.g context, project, state)")
-                                      (args:make-option (state) (required: "STATE") "Only find todo items in state STATE")) action-args "List todo items based on an optional filter (action-args)."
+                                      (args:make-option (invert) #:none "Invert filter")
+                                      (args:make-option (state) (required: "STATE") "Only find todo items in state STATE")
+                                      (args:make-option (or-else) (required: "FILTER") "Add multiple filter(s) to search by"
+                                                        (set! extra-filters (cons arg extra-filters)))) action-args "List todo items based on an optional filter (action-args)."
                                       (let ((task-count (+ (length tasks) (if (equal? action "listall") ;; If the user is trying to list done tasks, they should be included in the count.
                                                                               (length done-tasks)
                                                                               0)))
@@ -360,7 +365,9 @@
                                             (tasks (sort (filter (standard-task-filter (string-join action-args " ") (equal? action "listall")
                                                                                        state: (if (alist-ref 'state options)
                                                                                                   (string->symbol (alist-ref 'state options))
-                                                                                                  #f))
+                                                                                                  #f)
+                                                                                       or-filter: extra-filters
+                                                                                       invert: (alist-ref 'invert options))
                                                                  (append tasks done-tasks)) (apply sort-by (assoc-v 'sorting configuration))))
                                             (configuration (foldr (cut maybe-cons <> <> (o identity cdr))
                                                                   configuration
@@ -372,14 +379,24 @@
                                                                                               ""
                                                                                               "s") " shown." nl))]
 
-            [("next") ((args:make-option (highlighted) #:none "highlight next action")) action-args "Select the next most urgent task matching an optional filter (action-args)."
-             (let [(tasks (sort (filter (standard-task-filter (string-join action-args " " ) #f) tasks) (apply sort-by (assoc-v 'sorting configuration))))]
-               (if tasks
-                   ;; Pop off the top task (because of the sorting this is also the highest priority), and print it in text form.
-                   (if (alist-ref 'highlighted options)
-                       (fmt #t (print-task-as-highlighted configuration (car tasks)) nl)
-                       (print (task->string (car tasks))))
-                   (print "No tasks to do next.")))]
+            [("next") ((args:make-option (highlighted) #:none "highlight next action")
+                       (args:make-option (state) (required: "STATE") "Only find todo items in state STATE")
+                       (args:make-option (invert) #:none "Invert filter")
+                       (args:make-option (or-else) (required: "FILTER") "Add multiple filter(s) to search by"
+                                         (set! extra-filters (cons arg extra-filters)))) action-args "Select the next most urgent task matching an optional filter (action-args)."
+
+                                         (let [(tasks (sort (filter (standard-task-filter (string-join action-args " " ) #f
+                                                                                          state: (if (alist-ref 'state options)
+                                                                                                     (string->symbol (alist-ref 'state options))
+                                                                                                     #f)
+                                                                                          or-filter: extra-filters
+                                                                                          invert: (alist-ref 'invert options)) tasks) (apply sort-by (assoc-v 'sorting configuration))))]
+                        (if (not (null-list? tasks))
+                             ;; Pop off the top task (because of the sorting this is also the highest priority), and print it in text form.
+                             (if (alist-ref 'highlighted options)
+                                 (fmt #t (print-task-as-highlighted configuration (car tasks)) nl)
+                                 (print (task->string (car tasks))))
+                             (print "No tasks to do next.")))]
             [("edit") () _ "Open your todo file in $EDITOR"
              (edit todo-file)]
             (("inbox" "in") ((args:make-option (style) (required: "STYLE") "set the listing style")) action-args "View task inbox with optional filter (action-args)."
@@ -394,9 +411,9 @@
              (let [(qualifier (parse selector qualifier))]
                (if qualifier
                    (overwrite-file todo-file (format-tasks-as-file (with-tasks-at-selector tasks qualifier
-                                                                                      (cut update-task <> inbox: #f
-                                                                                           date: (current-date)
-                                                                                           ))))
+                                                                                           (cut update-task <> inbox: #f
+                                                                                                date: (current-date)
+                                                                                                ))))
                    (invalid-id-err id))))
             (("listproj" "lsprj") () _ "List all projects in task list."
              ;; List all the projects that are present in any task on the todo list
@@ -557,11 +574,11 @@
                                            (print-tasks configuration tasks)))
             (("projectreview" "prrv") () _ "Review projects"
              (let* [(done-project-alist (project-summary done-tasks))
-                   (todo-project-alist (project-summary tasks))
-                   (diff (alist- done-project-alist todo-project-alist))
-                   (percentage-report
-                    (map (b:bind-lambda (prj . _)
-                                        (percentage-complete todo-project-alist done-project-alist prj)) todo-project-alist))]
+                    (todo-project-alist (project-summary tasks))
+                    (diff (alist- done-project-alist todo-project-alist))
+                    (percentage-report
+                     (map (b:bind-lambda (prj . _)
+                                         (percentage-complete todo-project-alist done-project-alist prj)) todo-project-alist))]
                (fmt #t
                     (tabular
                      ""
@@ -625,10 +642,10 @@
             (("git") () cli "Manage your todo directory with git"
              (system (string-append "git " (string-join cli " "))))
             (("snooze" "pushback") () (qualifier snooze-duration) "Push back a task's due date by a duration"
-              (let [(selector (parse selector qualifier))
-                    (snooze-duration (parse duration snooze-duration))]
-                (overwrite-file todo-file (format-tasks-as-file (with-tasks-at-selector tasks selector
-                                                                                        (lambda (t) (task-due-add t snooze-duration from: (assoc-v 'due (task-property t)))))))))))
+             (let [(selector (parse selector qualifier))
+                   (snooze-duration (parse duration snooze-duration))]
+               (overwrite-file todo-file (format-tasks-as-file (with-tasks-at-selector tasks selector
+                                                                                       (lambda (t) (task-due-add t snooze-duration from: (assoc-v 'due (task-property t)))))))))))
         (err "Todo file invalid: " (cat "Todo file at " todo-dir " is missing, damaged, or otherwise unreadable.")))))
 (let [(args (argv))]
   (run (or (parse link (string-join (cdr args) " ")) (cdr args))))
