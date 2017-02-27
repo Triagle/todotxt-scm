@@ -31,3 +31,21 @@
 (define (sort-by . sorts)
   (lambda (a b)
     (find (cut (complement equal?) <> 'equal) (map (cut <> a b) sorts))))
+(define (rand-char)
+  ;; Return one random uppercase character
+  (integer->char (+ (random 26) 65)))
+(define (list-of n p)
+  (let loop [(lst '())
+         (c n)
+         ]
+    (if (zero? c)
+        lst
+        (loop (cons (p) lst) (- c 1)))))
+(define (gen-uuid)
+  ;; Generate a random UUID, (useful for permanent referral of tasks)
+  ;; The random UUID thing isn't exactly optimal for most use cases, but is basically for our purposes
+  ;; For instance, I am not doing any checks on the generating UUID
+  ;; The UUID is only a string of 10 uppercase letters
+  ;; However considering that the possibility of getting the same UUID twice is (1/26)^10 (7.084 * 10^-15), I frankly don't consider this to be an issue as of yet.
+  ;; TODO: Do maybe fix this though at some point
+  (list->string (list-of 10 rand-char)))
