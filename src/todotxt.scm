@@ -257,4 +257,29 @@
                                      '("complete")
                                      '("todo"))))]
     (map string->symbol (if (list? state) state (list state)))))
+(define (task-permid task)
+  ;; Return a tasks permanent id
+  (assoc-v 'permid (task-property task) default: #f))
+(define (task-blocks task)
+  ;; Return what other tasks task blocks
+  (let [(block-list (assoc-v 'blocks (task-property task) default: '()))]
+    (if (list? block-list)
+        block-list
+        (list block-list))))
+(define (task-blocked? task task-list)
+  ;; Returns a list of tasks that are blocking the task "task"
+  (let [(permid (task-permid task))]
+    (if (not permid)
+        #f
+        (not (null-list? (filter (lambda (t) (member permid (task-blocks t))) task-list))))))
+(define (block-task task blocked-by)
+  ;; Return the same two tasks, however with the first blocking the second via it's permid (created if needed).
+  (let [(permid (or (task-permid task) (gen-uuid)))]
+    (list (update-task task
+                       property: (cons (cons 'permid permid)
+                                       (rm-prop 'permid (task-property task))))
+          (update-task blocked-by
+                       property: (cons (cons 'blocks (cons permid (task-blocks blocked-by)))
+                                       (rm-prop 'permid (task-property task)))))))
+
 ;; Todo list manipulation

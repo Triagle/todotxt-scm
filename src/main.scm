@@ -522,9 +522,12 @@
                  (write-to-a-file done-file (format-tasks-as-file
                                              (remove
                                               ;; Remove all tasks that aren't done, thus isolated the newly updated tasks
-                                              (complement task-done)
+                                              (lambda (t)
+                                                (or (not (task-done t))
+                                                    (task-blocked? t tasks)))
                                               ;; Update tasklist, marking the selected ids as done.
-                                              (with-tasks-at-selector tasks selector (lambda (t) (update-task t done: #t inbox: #f
+                                              (with-tasks-at-selector tasks selector (lambda (t)
+                                                                                       (update-task t done: #t inbox: #f
                                                                                                               date: (or (task-date t) (current-date))
                                                                                                               completed-date: (current-date)))))))
                  ;; Overwrite the original todo file, removing the newly marked todo items unless a recur property prevents them
@@ -535,8 +538,10 @@
                                                        ;; Remove only task from the todo list only if
                                                        ;; That task is one of the selected tasks from the user
                                                        ;; That task also does not have a recur property.
+                                                       ;; That task is not blocked by some other task
                                                        (and (selector task)
-                                                            (not (assoc 'recur (task-property task))))) tasks)
+                                                            (not (assoc 'recur (task-property task)))
+                                                            (not (task-blocked? task tasks)))) tasks)
                                              selector
                                              (lambda (t)
                                                ;; If the task has a due date and a recur property
@@ -546,7 +551,8 @@
                                                      (fmt #t (fmt-unicode (fmt-bold "Task is recurrent, adding another in the future") nl) )
                                                      (task-due-add t (assoc-v 'recur (task-property t))))
                                                    ;; Otherwise just return the same task untouched
-                                                   t))))))))
+                                                   (update-task t
+                                                                property: (rm-prop 'blocks (task-property t)))))))))))
             (("recently") ((args:make-option (duration d) (required: "DRTN") "set the duration that counts as recent")
                            (args:make-option (style) (required: "STYLE") "set the style to print recent tasks in")) _ "View recently completed tasks."
                            (let* [(duration (if (or (not (alist-ref 'duration options)) (not (parse duration (alist-ref 'duration options))))
@@ -612,6 +618,22 @@
                (overwrite-file todo-file (format-tasks-as-file (with-tasks-at-selector tasks selector
                                                                                        (cut remove-from-todo <> 'context task-context context))))))
 
+            (("block") () (referring-id blocking-id) "Have one task (referring-id) be blocked by another task (specified by blocking-id)"
+             (let [(blocking-id (string->number blocking-id))
+                   (referring-id (string->number referring-id))
+                   (blocking-id-str blocking-id)
+                   (referring-id-str referring-id)]
+               (if (and referring-id blocking-id)
+                   (let [(referring-task (task-at tasks referring-id))
+                         (blocking-task (task-at tasks blocking-id))]
+                     (overwrite-file todo-file
+                                     (format-tasks-as-file
+                                      (append (block-task referring-task blocking-task)
+                                              (remove (lambda (task)
+                                                        (or (= (task-id task) blocking-id)
+                                                            (= (task-id task) referring-id)))
+                                                      tasks)))))
+                   (err "Invalid referring or blocking id" (format #f "~a, ~a" referring-id-str blocking-id-str)))))
             (("add-project" "ap") () (qualifier project) "Add a project to a task."
              (let ((selector (parse selector qualifier)))
                ;; Add a project to a todo item

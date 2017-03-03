@@ -34,7 +34,7 @@
 (define (rand-char)
   ;; Return one random uppercase character
   (integer->char (+ (random 26) 65)))
-(define (list-of n p)
+(define (list-fn n p)
   (let loop [(lst '())
          (c n)
          ]
@@ -48,4 +48,4 @@
   ;; The UUID is only a string of 10 uppercase letters
   ;; However considering that the possibility of getting the same UUID twice is (1/26)^10 (7.084 * 10^-15), I frankly don't consider this to be an issue as of yet.
   ;; TODO: Do maybe fix this though at some point
-  (list->string (list-of 10 rand-char)))
+  (list->string (list-fn 10 rand-char)))
