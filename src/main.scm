@@ -669,5 +669,8 @@
                (overwrite-file todo-file (format-tasks-as-file (with-tasks-at-selector tasks selector
                                                                                        (lambda (t) (task-due-add t snooze-duration from: (assoc-v 'due (task-property t)))))))))))
         (err "Todo file invalid: " (cat "Todo file at " todo-dir " is missing, damaged, or otherwise unreadable.")))))
-(let [(args (argv))]
+(let* [(args (argv))
+       (args (if (= (length args) 1)
+                 (list "" "subcommands")
+                 args))]
   (run (or (parse link (string-join (cdr args) " ")) (cdr args))))
